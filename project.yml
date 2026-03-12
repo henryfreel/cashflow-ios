@@ -1,0 +1,65 @@
+name: Cashflow
+options:
+  bundleIdPrefix: com.henryfreel
+  deploymentTarget:
+    iOS: 26.0
+settings:
+  base:
+    SWIFT_VERSION: 5.0
+targets:
+  Cashflow:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+    resources:
+      - Sources/Assets.xcassets
+      - Sources/Fonts
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.henryfreel.cashflow
+        INFOPLIST_KEY_CFBundleDisplayName: Cashflow
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+    info:
+      path: Sources/App/Info.plist
+      properties:
+        # Keep these iOS UI keys explicit. Without them, some simulator/runtime
+        # combinations may launch in compatibility-style letterboxed layout.
+        UILaunchStoryboardName: LaunchScreen
+        UIRequiresFullScreen: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIAppFonts:
+          - SquareSansDisplay-Bold.otf
+          - SquareSansDisplay-BoldCondensed.otf
+          - SquareSansDisplay-BoldExpanded.otf
+          - SquareSansDisplay-Medium.otf
+          - SquareSansDisplay-MediumCondensed.otf
+          - SquareSansDisplay-MediumExpanded.otf
+          - SquareSansDisplay-Regular.otf
+          - SquareSansDisplay-RegularCondensed.otf
+          - SquareSansDisplay-RegularExpanded.otf
+          - SquareSansText-Bold.otf
+          - SquareSansText-BoldItalic.otf
+          - SquareSansText-Italic.otf
+          - SquareSansText-Medium.otf
+          - SquareSansText-MediumItalic.otf
+          - SquareSansText-Regular.otf
+          - SquareSansText-SemiBold.otf
+          - SquareSansText-SemiBoldItalic.otf
+    scheme:
+      testTargets:
+        - CashflowTests
+
+  CashflowTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Tests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: true
+    dependencies:
+      - target: Cashflow
