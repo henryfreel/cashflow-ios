@@ -28,8 +28,12 @@ enum AppFont {
 extension Font {
     // Display — Square Sans Display
     static let display10 = Font.custom(AppFont.Display.bold,   size: 32) // Display/10
-    static let heading30 = Font.custom(AppFont.Display.bold,   size: 25) // Heading/30
+    static let heading30 = Font.custom(AppFont.Display.bold,   size: 26) // Heading/30
     static let heading20 = Font.custom(AppFont.Display.bold,   size: 19) // Heading/20
+
+    /// Account balance preview — used for all card balance amounts (Locations, Savings, Credit Card, Loans).
+    /// Change this one token to restyle every balance figure across all cards at once.
+    static let accountBalancePreview = Font.custom(AppFont.Display.bold, size: 20)
 
     // Text — Square Sans Text
     static let paragraphSemibold30 = Font.custom(AppFont.Text.semiBold, size: 16) // Paragraph/Semibold 30

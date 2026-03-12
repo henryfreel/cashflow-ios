@@ -7,11 +7,12 @@ enum Tab {
 struct ContentView: View {
     @State private var selectedTab: Tab = .home
     @State private var showBalance = false
+    @State private var isScrolled = false
 
     var body: some View {
         tabContent
             .safeAreaInset(edge: .top, spacing: 0) {
-                TopNavigationBar(showBalance: showBalance)
+                TopNavigationBar(showBalance: showBalance, isScrolled: isScrolled)
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 BottomTabBar(selectedTab: $selectedTab)
@@ -25,7 +26,7 @@ struct ContentView: View {
     private var tabContent: some View {
         switch selectedTab {
         case .home:
-            HomeView(showBalance: $showBalance)
+            HomeView(showBalance: $showBalance, isScrolled: $isScrolled)
         case .transfer, .analytics, .more:
             ScrollView {
                 Text("Coming soon")
@@ -42,6 +43,7 @@ struct ContentView: View {
 
 private struct TopNavigationBar: View {
     let showBalance: Bool
+    let isScrolled: Bool
 
     var body: some View {
         // Figma frame: 390×80pt. Icons 24×24pt.
@@ -90,7 +92,7 @@ private struct TopNavigationBar: View {
 
                 if showBalance {
                     // Figma Secondary Nav: Heading/20, color #006AFF
-                    Text("$12,189.42")
+                    Text(AppFinancials.netBalanceFormatted)
                         .font(.heading20)
                         .foregroundStyle(Color(red: 0, green: 106 / 255, blue: 1))
                         // Enters sliding down from above; exits sliding back up
@@ -102,6 +104,15 @@ private struct TopNavigationBar: View {
             }
         }
         .background(Color.white)
+        .overlay(alignment: .bottom) {
+            if isScrolled {
+                Rectangle()
+                    .fill(Color(white: 0, opacity: 0.05))
+                    .frame(height: 1)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: isScrolled)
     }
 }
 

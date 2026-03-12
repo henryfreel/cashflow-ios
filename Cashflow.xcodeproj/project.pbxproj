@@ -10,6 +10,7 @@
 		07301E6B1ED916C8ED2C3832 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5A8200AFB4DD3FA0BA42B4 /* ContentView.swift */; };
 		2BCF1AED307D405D9C19043D /* Font+App.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5496EB6947638555D66DB92 /* Font+App.swift */; };
 		2E7A2EB462DB55062F3CF2B3 /* SquareSansText-Bold.otf in Resources */ = {isa = PBXBuildFile; fileRef = 84FEEC42D87BFE813F5FB01C /* SquareSansText-Bold.otf */; };
+		39AC5B8E7217F56851BE4AD3 /* FinancialData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B25944740FD4301F20DDF253 /* FinancialData.swift */; };
 		5263090F9A50B13269E4C042 /* SquareSansDisplay-MediumCondensed.otf in Resources */ = {isa = PBXBuildFile; fileRef = A4785E30E6141298A7CD9494 /* SquareSansDisplay-MediumCondensed.otf */; };
 		54B2683CDDEEE3A63B241F62 /* SquareSansText-Regular.otf in Resources */ = {isa = PBXBuildFile; fileRef = D75E7118B3996645CC0BB200 /* SquareSansText-Regular.otf */; };
 		5CE421A79BE5C10C1171F84A /* SquareSansText-SemiBold.otf in Resources */ = {isa = PBXBuildFile; fileRef = 646902238A230AEF1D0670DC /* SquareSansText-SemiBold.otf */; };
@@ -50,7 +51,7 @@
 		420847885186BE125C7DE757 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5A5A8200AFB4DD3FA0BA42B4 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		5F2D32A0DAD842D2F22D7D3D /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
-		6451CE345E21878B3BF62B76 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		6451CE345E21878B3BF62B76 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
 		646902238A230AEF1D0670DC /* SquareSansText-SemiBold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-SemiBold.otf"; sourceTree = "<group>"; };
 		713C43D08447454AAB989F7C /* SquareSansText-BoldItalic.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-BoldItalic.otf"; sourceTree = "<group>"; };
 		84FEEC42D87BFE813F5FB01C /* SquareSansText-Bold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-Bold.otf"; sourceTree = "<group>"; };
@@ -61,6 +62,7 @@
 		AACDB4A56F87F55B57342118 /* SquareSansText-MediumItalic.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-MediumItalic.otf"; sourceTree = "<group>"; };
 		AC88640991B169E85610792C /* SquareSansText-SemiBoldItalic.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-SemiBoldItalic.otf"; sourceTree = "<group>"; };
 		B0D8E07766559610FB82018C /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		B25944740FD4301F20DDF253 /* FinancialData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinancialData.swift; sourceTree = "<group>"; };
 		B5496EB6947638555D66DB92 /* Font+App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Font+App.swift"; sourceTree = "<group>"; };
 		C212DD83AAC44A6BE9343C15 /* CashflowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CashflowTests.swift; sourceTree = "<group>"; };
 		C3E016507CC15153C59079A5 /* SquareSansDisplay-BoldExpanded.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansDisplay-BoldExpanded.otf"; sourceTree = "<group>"; };
@@ -69,7 +71,7 @@
 		D512AE627C4BD3DA1E8F0D5C /* SquareSansDisplay-RegularExpanded.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansDisplay-RegularExpanded.otf"; sourceTree = "<group>"; };
 		D75E7118B3996645CC0BB200 /* SquareSansText-Regular.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-Regular.otf"; sourceTree = "<group>"; };
 		DDE36791416AE91812AE1A91 /* SquareSansDisplay-MediumExpanded.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansDisplay-MediumExpanded.otf"; sourceTree = "<group>"; };
-		ECDF5532177CE790D19F0FD6 /* Cashflow.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Cashflow.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		ECDF5532177CE790D19F0FD6 /* Cashflow.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cashflow.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED237567398128888E470E36 /* SquareSansDisplay-Bold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansDisplay-Bold.otf"; sourceTree = "<group>"; };
 		F7355B151DE363A0DD494076 /* SquareSansDisplay-BoldCondensed.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansDisplay-BoldCondensed.otf"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -160,9 +162,18 @@
 				70486C5ED991821D1DBC7A27 /* App */,
 				BE19E019F3CC88A783F254EE /* DesignSystem */,
 				6ADC654CED96979C13717643 /* Fonts */,
+				F6DDEEDA9A621699132B239F /* Models */,
 				9DA29B384009FA6BDD08215D /* Views */,
 			);
 			path = Sources;
+			sourceTree = "<group>";
+		};
+		F6DDEEDA9A621699132B239F /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				B25944740FD4301F20DDF253 /* FinancialData.swift */,
+			);
+			path = Models;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -214,7 +225,6 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					DE28C2C2443C047CEE312DFE = {
-						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -275,6 +285,7 @@
 			files = (
 				8FFFDE13AE132346A9115E7F /* CashflowApp.swift in Sources */,
 				07301E6B1ED916C8ED2C3832 /* ContentView.swift in Sources */,
+				39AC5B8E7217F56851BE4AD3 /* FinancialData.swift in Sources */,
 				2BCF1AED307D405D9C19043D /* Font+App.swift in Sources */,
 				B70FD9E3BE4080C0C3BB1C9C /* HomeView.swift in Sources */,
 			);
@@ -458,7 +469,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 2EXWMSS3AZ;
 				INFOPLIST_FILE = Sources/App/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Cashflow;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -478,7 +489,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 2EXWMSS3AZ;
 				INFOPLIST_FILE = Sources/App/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Cashflow;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
