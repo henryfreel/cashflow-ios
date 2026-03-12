@@ -34,7 +34,7 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
                     .padding(24)
             }
-            .background(Color(red: 247/255, green: 247/255, blue: 247/255).ignoresSafeArea())
+            .background(Color.gray50.ignoresSafeArea())
         }
     }
 }
@@ -107,7 +107,7 @@ private struct TopNavigationBar: View {
         .overlay(alignment: .bottom) {
             if isScrolled {
                 Rectangle()
-                    .fill(Color(white: 0, opacity: 0.05))
+                    .fill(Color.gray100)
                     .frame(height: 1)
                     .transition(.opacity)
             }
@@ -119,16 +119,16 @@ private struct TopNavigationBar: View {
 // MARK: - Bottom Tab Bar
 
 // Figma frame: 4 tabs × 94pt wide, centered on 390pt screen.
-// Top border: 1px #D5D7D9. Top padding: 13pt. Tab height: 48pt.
-// Active color: #006AFF. Inactive: rgba(0,0,0,0.9).
+// Top border: 1px gray100 (matches nav bar bottom separator). Top padding: 13pt. Tab height: 48pt.
+// Active color: #006AFF. Inactive: gray900.
 private struct BottomTabBar: View {
     @Binding var selectedTab: Tab
 
     var body: some View {
         VStack(spacing: 0) {
-            // 1px top border, color Core/Gray Lighter: #D5D7D9
+            // 1px top border
             Rectangle()
-                .fill(Color(red: 213 / 255, green: 215 / 255, blue: 217 / 255))
+                .fill(Color.gray100)
                 .frame(height: 1)
 
             // Tabs row: 13pt top padding, 48pt tall tabs
@@ -163,7 +163,7 @@ private struct TabItem: View {
     private var color: Color {
         isSelected
             ? Color(red: 0, green: 106 / 255, blue: 1)
-            : Color(white: 0, opacity: 0.9)
+            : Color.gray900
     }
 
     var body: some View {

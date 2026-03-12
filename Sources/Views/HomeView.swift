@@ -59,7 +59,7 @@ struct HomeView: View {
                 }
             }
         }
-        .background(Color(red: 247/255, green: 247/255, blue: 247/255).ignoresSafeArea())
+        .background(Color.gray50.ignoresSafeArea())
     }
 }
 
@@ -70,11 +70,11 @@ private struct GreetingSection: View {
         VStack(spacing: 0) {
             (
                 Text("You have ")
-                    .foregroundStyle(Color(white: 0, opacity: 0.9))
+                    .foregroundStyle(Color.gray900)
                 + Text(AppFinancials.netBalanceFormatted)
                     .foregroundStyle(Color(red: 0, green: 106/255, blue: 1))
                 + Text(" across all your accounts")
-                    .foregroundStyle(Color(white: 0, opacity: 0.9))
+                    .foregroundStyle(Color.gray900)
             )
             .font(.heading30)
             .lineSpacing(4)
@@ -126,12 +126,12 @@ private struct LauncherRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.paragraphMedium30)
-                    .foregroundStyle(Color(white: 0, opacity: 0.9))
+                    .foregroundStyle(Color.gray900)
 
                 if let sub = subtitle {
                     Text(sub)
                         .font(.paragraph20)
-                        .foregroundStyle(Color(white: 0, opacity: 0.55))
+                        .foregroundStyle(Color.gray500)
                 }
             }
 
@@ -141,12 +141,12 @@ private struct LauncherRow: View {
                 Text(amount)
                     .font(.accountBalancePreview)
                     .lineSpacing(0)
-                    .foregroundStyle(Color(white: 0, opacity: 0.9))
+                    .foregroundStyle(Color.gray900)
 
                 if let sub = amountSubtitle, !sub.isEmpty {
                     Text(sub)
                         .font(.paragraph20)
-                        .foregroundStyle(Color(white: 0, opacity: 0.55))
+                        .foregroundStyle(Color.gray500)
                 }
             }
         }
@@ -163,7 +163,125 @@ private struct ProfitLossCard: View {
     @State private var chartTopInCard: CGFloat = 0  // measured; drives tooltip Y
     @State private var tooltipHeight: CGFloat = 36  // measured; drives upper line segment
 
+    // Time-navigation state — each tracks the period currently shown in the chart.
+    // Resetting to current values when the user switches period pills keeps UX predictable.
+    @State private var selectedYear:    Int = AppFinancials.currentYear
+    @State private var selectedMonth:   Int = AppFinancials.currentMonth
+    @State private var selectedQuarter: Int = AppFinancials.currentQuarter
+
+    // Slide-transition control
+    @State private var slideLeft: Bool = true   // true = new chart enters from right (going forward)
+    @State private var useSlide:  Bool = false  // only true during swipe navigation; false for period-pill taps
+
+    // Rubber-band feedback when swiping against a navigation boundary
+    @State private var bounceOffset: CGFloat = 0
+
     let periods = ["1M", "1Q", "1Y"]
+
+    // MARK: Navigation helpers
+
+    private static let fullMonthNames = [
+        "January","February","March","April","May","June",
+        "July","August","September","October","November","December"
+    ]
+
+    private var canGoBack: Bool {
+        switch selectedPeriod {
+        case "1M": return !(selectedYear == AppFinancials.minYear && selectedMonth == 1)
+        case "1Q": return !(selectedYear == AppFinancials.minYear && selectedQuarter == 1)
+        default:   return selectedYear > AppFinancials.minYear
+        }
+    }
+
+    private var canGoForward: Bool {
+        switch selectedPeriod {
+        case "1M": return !(selectedYear == AppFinancials.currentYear && selectedMonth == AppFinancials.currentMonth)
+        case "1Q": return !(selectedYear == AppFinancials.currentYear && selectedQuarter == AppFinancials.currentQuarter)
+        default:   return selectedYear < AppFinancials.currentYear
+        }
+    }
+
+    private func navigateBack(animation: Animation = .easeInOut(duration: 0.3)) {
+        guard canGoBack else { return }
+        slideLeft = false
+        useSlide  = true
+        withAnimation(animation) {
+            activeBarIndex = nil
+            switch selectedPeriod {
+            case "1M":
+                if selectedMonth == 1 { selectedMonth = 12; selectedYear -= 1 }
+                else { selectedMonth -= 1 }
+            case "1Q":
+                if selectedQuarter == 1 { selectedQuarter = 4; selectedYear -= 1 }
+                else { selectedQuarter -= 1 }
+            default:
+                selectedYear -= 1
+            }
+        }
+    }
+
+    private func navigateForward(animation: Animation = .easeInOut(duration: 0.3)) {
+        guard canGoForward else { return }
+        slideLeft = true
+        useSlide  = true
+        withAnimation(animation) {
+            activeBarIndex = nil
+            switch selectedPeriod {
+            case "1M":
+                if selectedMonth == 12 { selectedMonth = 1; selectedYear += 1 }
+                else { selectedMonth += 1 }
+            case "1Q":
+                if selectedQuarter == 4 { selectedQuarter = 1; selectedYear += 1 }
+                else { selectedQuarter += 1 }
+            default:
+                selectedYear += 1
+            }
+        }
+    }
+
+    // MARK: Slide transition
+
+    /// Unique ID for the displayed chart slice. SwiftUI sees a new view whenever
+    /// this changes, triggering the `.transition` defined on the container.
+    private var navID: String {
+        switch selectedPeriod {
+        case "1M": return "1M_\(selectedYear)_\(selectedMonth)"
+        case "1Q": return "1Q_\(selectedYear)_\(selectedQuarter)"
+        default:   return "1Y_\(selectedYear)"
+        }
+    }
+
+    /// Direction-aware slide for navigation swipes; plain opacity for period-pill taps.
+    private var chartTransition: AnyTransition {
+        guard useSlide else { return .opacity }
+        // slideLeft = true  → user swiped left (forward in time):
+        //   • old chart exits LEFT  (sign = -1 on removal)
+        //   • new chart enters from RIGHT (sign = +1 on insertion)
+        let sign: CGFloat = slideLeft ? 1 : -1
+        return .asymmetric(
+            insertion: .offset(x:  sign * 380).combined(with: .opacity),
+            removal:   .offset(x: -sign * 380).combined(with: .opacity)
+        )
+    }
+
+    // MARK: Page indicator data
+
+    private var pageCount: Int {
+        let years = AppFinancials.currentYear - AppFinancials.minYear + 1
+        switch selectedPeriod {
+        case "1M": return years * 12
+        case "1Q": return years * 4
+        default:   return years
+        }
+    }
+
+    private var currentPage: Int {
+        switch selectedPeriod {
+        case "1M": return (selectedYear - AppFinancials.minYear) * 12 + (selectedMonth   - 1)
+        case "1Q": return (selectedYear - AppFinancials.minYear) * 4  + (selectedQuarter - 1)
+        default:   return  selectedYear - AppFinancials.minYear
+        }
+    }
 
     // Shared gesture overlay placed on each bars HStack.
     // Uses UIKit gesture recognizers so vertical drags are cleanly rejected before
@@ -199,10 +317,12 @@ private struct ProfitLossCard: View {
     // loss bar will be proportionally shorter than a $5,000 profit bar.
     // The one bar with the greatest absolute value always reaches exactly 60pt.
     private var bars: [MonthBar] {
-        let data = AppFinancials.monthly
+        let data = AppFinancials.monthlyData(year: selectedYear)
         let maxAbs = data.map { abs($0.netProfit) }.max() ?? 1
         let scale = CGFloat(60.0 / maxAbs)
-        let currentId = data.last?.id ?? -1
+        // Current month indicator only applies when viewing the live year/month
+        let isLiveYear = selectedYear == AppFinancials.currentYear
+        let liveMonthId = AppFinancials.currentMonth - 1  // id is 0-based
         return data.map { m in
             MonthBar(
                 id: m.id,
@@ -210,7 +330,7 @@ private struct ProfitLossCard: View {
                 fullMonth: m.fullMonth,
                 height: CGFloat(m.netProfit) * scale,
                 value: m.netProfit,
-                isCurrentMonth: m.id == currentId
+                isCurrentMonth: isLiveYear && m.id == liveMonthId
             )
         }
     }
@@ -220,28 +340,32 @@ private struct ProfitLossCard: View {
     struct DayBar: Identifiable {
         let id: Int            // 0-based index for array access
         let dayNumber: Int     // 1-based day (1–31)
+        let monthName: String  // e.g. "December"
         let height: CGFloat    // normalized ±60pt; 0 for future days
         let value: Double      // net profit
-        let hasData: Bool      // false for days 16–31
-        let isToday: Bool      // Dec 15 = partial, always shown dimmed at rest
+        let hasData: Bool      // false for future days
+        let isToday: Bool      // current partial day shown dimmed at rest
 
         // Label shown on the axis: odd days only; even days return ""
         var dayLabel: String  { dayNumber % 2 == 1 ? "\(dayNumber)" : "" }
-        var fullLabel: String { "December \(dayNumber)" }
+        var fullLabel: String { "\(monthName) \(dayNumber)" }
     }
 
     private var dayBars: [DayBar] {
-        let data = AppFinancials.decemberDaily
+        let data = AppFinancials.dailyData(year: selectedYear, month: selectedMonth)
         let maxAbs = data.filter { $0.hasData }.map { abs($0.netProfit) }.max() ?? 1
         let scale = CGFloat(60.0 / maxAbs)
+        let monthName = Self.fullMonthNames[max(0, min(11, selectedMonth - 1))]
+        let isLiveMonth = selectedYear == AppFinancials.currentYear && selectedMonth == AppFinancials.currentMonth
         return data.map { d in
             DayBar(
                 id: d.id - 1,
                 dayNumber: d.id,
+                monthName: monthName,
                 height: d.hasData ? CGFloat(d.netProfit) * scale : 0,
                 value: d.netProfit,
                 hasData: d.hasData,
-                isToday: d.id == 15
+                isToday: isLiveMonth && d.id == AppFinancials.currentDay
             )
         }
     }
@@ -259,9 +383,11 @@ private struct ProfitLossCard: View {
     }
 
     private var weekBars: [WeekBar] {
-        let data = AppFinancials.quarterlyWeeks
+        let data = AppFinancials.weeklyData(year: selectedYear, quarter: selectedQuarter)
         let maxAbs = data.filter { $0.hasData }.map { abs($0.netProfit) }.max() ?? 1
         let scale = CGFloat(60.0 / maxAbs)
+        // Current-week dimming only applies when viewing the live quarter
+        let isLiveQuarter = selectedYear == AppFinancials.currentYear && selectedQuarter == AppFinancials.currentQuarter
         return data.map { w in
             let weekNum = w.id + 1
             return WeekBar(
@@ -271,7 +397,7 @@ private struct ProfitLossCard: View {
                 height: w.hasData ? CGFloat(w.netProfit) * scale : 0,
                 value: w.netProfit,
                 hasData: w.hasData,
-                isCurrentWeek: w.id == 10
+                isCurrentWeek: isLiveQuarter && w.id == 10
             )
         }
     }
@@ -305,9 +431,14 @@ private struct ProfitLossCard: View {
     // Net profit for the currently selected period (used when not scrubbing)
     private var periodTotal: Double {
         switch selectedPeriod {
-        case "1M": return AppFinancials.decemberDaily.filter(\.hasData).map(\.netProfit).reduce(0, +)
-        case "1Q": return AppFinancials.quarterlyWeeks.filter(\.hasData).map(\.netProfit).reduce(0, +)
-        default:   return AppFinancials.netProfit
+        case "1M":
+            return AppFinancials.dailyData(year: selectedYear, month: selectedMonth)
+                .filter(\.hasData).map(\.netProfit).reduce(0, +)
+        case "1Q":
+            return AppFinancials.weeklyData(year: selectedYear, quarter: selectedQuarter)
+                .filter(\.hasData).map(\.netProfit).reduce(0, +)
+        default:
+            return AppFinancials.monthlyData(year: selectedYear).map(\.netProfit).reduce(0, +)
         }
     }
 
@@ -356,9 +487,49 @@ private struct ProfitLossCard: View {
 
     private var periodSubtitle: String {
         switch selectedPeriod {
-        case "1M": return "Net profit so far this month"
-        case "1Q": return "Net profit so far this quarter"
-        default:   return "Net profit so far this year"
+        case "1M":
+            let name = Self.fullMonthNames[max(0, min(11, selectedMonth - 1))]
+            return "Net profit for \(name) \(selectedYear)"
+        case "1Q":
+            return "Net profit for Q\(selectedQuarter) \(selectedYear)"
+        default:
+            return "Net profit for \(selectedYear)"
+        }
+    }
+
+    private func pillForeground(_ period: String) -> Color {
+        period == selectedPeriod ? Color.gray500 : Color.gray300
+    }
+
+    private func pillBackground(_ period: String) -> Color {
+        period == selectedPeriod ? Color.gray100 : Color.clear
+    }
+
+    private var periodPicker: some View {
+        HStack(spacing: 8) {
+            ForEach(periods, id: \.self) { period in
+                Text(period)
+                    .font(.paragraphSemibold10)
+                    .foregroundStyle(pillForeground(period))
+                    .padding(.horizontal, 8)
+                    .frame(minWidth: 32)
+                    .frame(height: 24)
+                    .background(pillBackground(period))
+                    .clipShape(Capsule())
+                    .onTapGesture {
+                        if period == selectedPeriod {
+                            useSlide = false
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                activeBarIndex  = nil
+                                selectedYear    = AppFinancials.currentYear
+                                selectedMonth   = AppFinancials.currentMonth
+                                selectedQuarter = AppFinancials.currentQuarter
+                            }
+                        } else {
+                            selectedPeriod = period
+                        }
+                    }
+            }
         }
     }
 
@@ -367,54 +538,43 @@ private struct ProfitLossCard: View {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 0) {
                     Text("Profit & Loss")
-
                         .font(.heading20)
-                        .foregroundStyle(Color(white: 0, opacity: 0.9))
+                        .foregroundStyle(Color.gray900)
 
                     Spacer()
 
-                    HStack(spacing: 0) {
-                        ForEach(periods, id: \.self) { period in
-                            Text(period)
-                                .font(.paragraphSemibold10)
-                                .foregroundStyle(
-                                    period == selectedPeriod
-                                        ? Color(white: 0, opacity: 0.55)
-                                        : Color(white: 0, opacity: 0.3)
-                                )
-                                .padding(.horizontal, 8)
-                                .frame(height: 24)
-                                .background(
-                                    period == selectedPeriod
-                                        ? Color(red: 235/255, green: 237/255, blue: 239/255)
-                                        : Color.clear
-                                )
-                                .clipShape(Capsule())
-                                .onTapGesture { selectedPeriod = period }
-                        }
-                    }
+                    periodPicker
                 }
                 .padding(.bottom, 16)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(formattedValue(displayedProfit))
                         .font(.display10)
-                        .foregroundStyle(Color(white: 0, opacity: 0.9))
+                        .foregroundStyle(Color.gray900)
 
                     Text(periodSubtitle)
                         .font(.paragraph20)
-                        .foregroundStyle(Color(white: 0, opacity: 0.55))
+                        .foregroundStyle(Color.gray500)
                 }
                 .padding(.top, 8)
                 .padding(.bottom, 56)
 
+                // Each chart area's bars HStack carries the transition + bounce offset;
+                // the labels row inside each area and the dots below stay fixed.
                 switch selectedPeriod {
                 case "1M": dailyChartArea
                 case "1Q": quarterlyChartArea
                 default:   chartArea
                 }
+
+                // Paging dots — anchored, never moves.
+                ChartPageControl(numberOfPages: pageCount, currentPage: currentPage)
+                    .frame(maxWidth: .infinity, minHeight: 20, maxHeight: 20)
+                    .padding(.top, 8)
             }
-            .padding(24)
+            .padding(.horizontal, 24)
+            .padding(.top, 24)
+            .padding(.bottom, 12)
         }
         // Tooltip lives OUTSIDE CardContainer's clipShape so it can travel to screen edges.
         // Y is driven by the measured chartTopInCard: tooltip bottom = chartTopInCard - 8pt,
@@ -452,8 +612,55 @@ private struct ProfitLossCard: View {
         }
         // Named coordinate space lets chartArea measure its exact Y within the card.
         .coordinateSpace(name: "profitCard")
+        // Swipe left/right to navigate backward/forward in time.
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 20)
+                .onChanged { value in
+                    guard activeBarIndex == nil else { return }
+                    let h = value.translation.width
+                    let v = value.translation.height
+                    guard abs(h) > abs(v) else {
+                        if bounceOffset != 0 { bounceOffset = 0 }
+                        return
+                    }
+                    let atBoundary = (h > 0 && !canGoBack) || (h < 0 && !canGoForward)
+                    // Allowed direction: bars follow the finger 1:1.
+                    // Boundary direction: damped rubber-band (~25%).
+                    bounceOffset = atBoundary ? h * 0.25 : h
+                }
+                .onEnded { value in
+                    guard activeBarIndex == nil else {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.65)) { bounceOffset = 0 }
+                        return
+                    }
+                    let h = value.translation.width
+                    let v = value.translation.height
+                    // Lower commit threshold (30 pt) since the user has already
+                    // dragged the content; faster snap animation for the same reason.
+                    let isHorizontal = abs(h) > abs(v) * 1.5 && abs(h) > 30
+                    let blocked = (h > 0 && !canGoBack) || (h < 0 && !canGoForward)
+
+                    if isHorizontal && !blocked {
+                        bounceOffset = 0
+                        let snap: Animation = .easeOut(duration: 0.18)
+                        if h > 0 { navigateBack(animation: snap) }
+                        else     { navigateForward(animation: snap) }
+                    } else {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.65)) {
+                            bounceOffset = 0
+                        }
+                    }
+                }
+        )
         .onChange(of: selectedPeriod) { _, _ in
-            withAnimation(.easeOut(duration: 0.2)) { activeBarIndex = nil }
+            useSlide = false  // period-pill change: use opacity cross-fade, not slide
+            withAnimation(.easeOut(duration: 0.2)) {
+                activeBarIndex = nil
+                // Reset to current period so tapping a pill always returns to "now"
+                selectedYear    = AppFinancials.currentYear
+                selectedMonth   = AppFinancials.currentMonth
+                selectedQuarter = AppFinancials.currentQuarter
+            }
         }
     }
 
@@ -471,7 +678,7 @@ private struct ProfitLossCard: View {
             .frame(height: 120)
             .contentShape(Rectangle())
             .overlay(alignment: .top) {
-                Color(white: 0, opacity: 0.06)
+                Color.gray100
                     .frame(height: 1)
                     .offset(y: 60)
             }
@@ -486,8 +693,12 @@ private struct ProfitLossCard: View {
                 }
             }
             .overlay { scrubOverlay }
+            // Bars slide on navigation and rubber-band on boundary; labels stay put.
+            .id(navID)
+            .transition(chartTransition)
+            .offset(x: bounceOffset)
 
-            // Month labels
+            // Month labels — fixed, never offset.
             HStack(spacing: 8) {
                 ForEach(bars) { bar in
                     Text(bar.month)
@@ -495,12 +706,15 @@ private struct ProfitLossCard: View {
                               ? .custom(AppFont.Text.semiBold, size: 10)
                               : .custom(AppFont.Text.regular,  size: 10))
                         .foregroundStyle(activeBarIndex == bar.id
-                            ? Color(white: 0, opacity: 0.9)
-                            : Color(white: 0, opacity: 0.3))
+                            ? Color.gray900
+                            : Color.gray300)
                         .frame(maxWidth: .infinity)
                 }
             }
+            .frame(height: 14)
         }
+        // Clip so offset bars don't visually overflow into the labels row.
+        .clipped()
         // Capture chart width for gesture math, and chart's Y in the card for tooltip placement.
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { chartWidth = $0 }
         .onGeometryChange(for: CGFloat.self) {
@@ -522,7 +736,7 @@ private struct ProfitLossCard: View {
             .frame(height: 120)
             .contentShape(Rectangle())
             .overlay(alignment: .top) {
-                Color(white: 0, opacity: 0.06)
+                Color.gray100
                     .frame(height: 1)
                     .offset(y: 60)
             }
@@ -535,8 +749,11 @@ private struct ProfitLossCard: View {
                 }
             }
             .overlay { scrubOverlay }
+            .id(navID)
+            .transition(chartTransition)
+            .offset(x: bounceOffset)
 
-            // Day labels:
+            // Day labels — fixed, never offset.
             //   • At rest: odd days only, 2× slot width for breathing room.
             //   • While scrubbing: active day always shows; the two immediate
             //     neighbours (±1 index) are hidden to avoid overlap; all other
@@ -557,14 +774,15 @@ private struct ProfitLossCard: View {
                                           ? .custom(AppFont.Text.semiBold, size: 10)
                                           : .custom(AppFont.Text.regular,  size: 10))
                                     .foregroundStyle(isActive
-                                        ? Color(white: 0, opacity: 0.9)
-                                        : Color(white: 0, opacity: 0.3))
+                                        ? Color.gray900
+                                        : Color.gray300)
                                     .frame(width: slotW * 2)
                             }
                         }
                 }
             }
         }
+        .clipped()
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { chartWidth = $0 }
         .onGeometryChange(for: CGFloat.self) {
             $0.frame(in: .named("profitCard")).minY
@@ -585,7 +803,7 @@ private struct ProfitLossCard: View {
             .frame(height: 120)
             .contentShape(Rectangle())
             .overlay(alignment: .top) {
-                Color(white: 0, opacity: 0.06)
+                Color.gray100
                     .frame(height: 1)
                     .offset(y: 60)
             }
@@ -598,8 +816,11 @@ private struct ProfitLossCard: View {
                 }
             }
             .overlay { scrubOverlay }
+            .id(navID)
+            .transition(chartTransition)
+            .offset(x: bounceOffset)
 
-            // Week labels — W1 through W12
+            // Week labels — fixed, never offset.
             HStack(spacing: 8) {
                 ForEach(weekBars) { bar in
                     Text("\(bar.id + 1)")
@@ -607,13 +828,15 @@ private struct ProfitLossCard: View {
                               ? .custom(AppFont.Text.semiBold, size: 10)
                               : .custom(AppFont.Text.regular,  size: 10))
                         .foregroundStyle(activeBarIndex == bar.id
-                            ? Color(white: 0, opacity: 0.9)
-                            : Color(white: 0, opacity: 0.3))
+                            ? Color.gray900
+                            : Color.gray300)
                         .frame(maxWidth: .infinity)
                         .minimumScaleFactor(0.5)
                 }
             }
+            .frame(height: 14)
         }
+        .clipped()
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { chartWidth = $0 }
         .onGeometryChange(for: CGFloat.self) {
             $0.frame(in: .named("profitCard")).minY
@@ -790,7 +1013,7 @@ private struct BarScrubTooltip: View {
         .multilineTextAlignment(.center)
         .padding(.horizontal, 8)
         .padding(.vertical, 2)
-        .background(Color(red: 26/255, green: 26/255, blue: 26/255))
+        .background(Color.gray900)
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
@@ -804,6 +1027,74 @@ private struct BarScrubTooltip: View {
 // so vertical touches are explicitly rejected (letting ScrollView scroll) while
 // horizontal drags and long-presses activate scrubbing.
 
+// MARK: - Chart Page Control
+
+/// Custom compact page indicator.
+///
+/// Size hierarchy (5 dots max visible at a time):
+///   5+ pages: active + ±1 share the largest size; each further step shrinks.
+///             [2pt, 3pt, 7pt, 7pt, 7pt, 5pt, 3pt, 2pt] → centred window of 5
+///   <5 pages: every distance step maps to a unique size for a clear hierarchy.
+///             2 dots → [7, 5]
+///             3 dots → [7, 5, 3]   (active in middle)
+///             4 dots → [5, 7, 5, 3]  etc.
+///
+/// A sliding window keeps the active dot centred as much as possible.
+private struct ChartPageControl: View {
+    let numberOfPages: Int
+    let currentPage:   Int
+
+    // Dot geometry — four distinct tiers so every slot in the 5-dot window
+    // always has a unique size, including the edge case where active is at
+    // the far right/left and the window is [dist4, dist3, dist2, dist1, active].
+    private let sizeActive: CGFloat = 7     // dist 0 and 1 — active + immediate neighbours
+    private let sizeMid:    CGFloat = 5     // dist 2 — 4th dot outward
+    private let sizeSmall:  CGFloat = 3     // dist 3 — 5th dot outward
+    private let sizeTiny:   CGFloat = 2     // dist 4+ — beyond visible window at edge
+    private let spacing: CGFloat = 6
+
+    // The 5-dot window, centred on currentPage as much as possible.
+    private var visiblePages: [Int] {
+        guard numberOfPages > 1 else { return [] }
+        let total    = min(numberOfPages, 5)
+        let start    = max(0, min(currentPage - 2, numberOfPages - total))
+        return Array(start..<(start + total))
+    }
+
+    var body: some View {
+        if visiblePages.isEmpty { EmptyView() } else {
+            HStack(spacing: spacing) {
+                ForEach(visiblePages, id: \.self) { page in
+                    let dist = abs(page - currentPage)
+
+                    // Size rule:
+                    //   5+ pages → active AND ±1 share the largest size (current default)
+                    //   <5 pages → every distance step maps to a unique, progressively
+                    //              smaller size so even 2-dot and 3-dot indicators show
+                    //              a clear visual hierarchy.
+                    let size: CGFloat = numberOfPages >= 5
+                        ? (dist <= 1 ? sizeActive : dist == 2 ? sizeMid : dist == 3 ? sizeSmall : sizeTiny)
+                        : (dist == 0 ? sizeActive : dist == 1 ? sizeMid : dist == 2 ? sizeSmall : sizeTiny)
+
+                    let opacity: Double = dist == 0 ? 0.65
+                                        : dist == 1 ? 0.40
+                                        : dist == 2 ? 0.25
+                                        : dist == 3 ? 0.17
+                                        :             0.10
+                    Circle()
+                        .fill(Color.gray900.opacity(opacity))
+                        .frame(width: size, height: size)
+                        .transition(.opacity)
+                }
+            }
+            // All dot size/opacity/position changes animate with the page change.
+            .animation(.easeInOut(duration: 0.3), value: currentPage)
+        }
+    }
+}
+
+// MARK: - Chart Scrub Overlay
+
 private struct ChartScrubOverlay: UIViewRepresentable {
     let onScrubChanged: (CGFloat) -> Void
     let onScrubEnded:   () -> Void
@@ -816,28 +1107,20 @@ private struct ChartScrubOverlay: UIViewRepresentable {
         let view = UIView()
         view.backgroundColor = .clear
 
-        // Long-press: fires scrubbing after 0.3 s of near-stationary touch.
-        // allowableMovement is very large so the gesture tracks indefinitely once
-        // the 0.3 s threshold fires — the finger can drag freely afterwards.
+        // Long-press only: scrubbing activates after 0.3 s of near-stationary touch.
+        // allowableMovement stays at the default (~10 pt) so that a vertical scroll
+        // cancels the recognizer before the threshold fires, letting UIScrollView
+        // handle scrolling unobstructed. Once .began fires, the finger can drag freely
+        // and .changed keeps reporting positions.
         let lp = UILongPressGestureRecognizer(
             target: context.coordinator,
             action: #selector(Coordinator.handleLongPress(_:))
         )
         lp.minimumPressDuration = 0.3
-        lp.allowableMovement = 10_000
         lp.cancelsTouchesInView = false
+        lp.delaysTouchesBegan   = false
         lp.delegate = context.coordinator
         view.addGestureRecognizer(lp)
-
-        // Pan: handles immediate horizontal drag activation. gestureRecognizerShouldBegin
-        // rejects vertical-dominant movement so UIScrollView scrolls unobstructed.
-        let pan = UIPanGestureRecognizer(
-            target: context.coordinator,
-            action: #selector(Coordinator.handlePan(_:))
-        )
-        pan.cancelsTouchesInView = false
-        pan.delegate = context.coordinator
-        view.addGestureRecognizer(pan)
 
         return view
     }
@@ -857,22 +1140,11 @@ private struct ChartScrubOverlay: UIViewRepresentable {
             self.onScrubEnded   = onScrubEnded
         }
 
-        // Allow this recognizer to fire alongside any other (especially UIScrollView's pan).
+        // Allow this recognizer to fire alongside UIScrollView's pan gesture.
         func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,
             shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
         ) -> Bool { true }
-
-        // Pan only begins when movement is clearly horizontal. Returning false lets
-        // UIKit pass the touch to the next recognizer (UIScrollView's pan gesture).
-        func gestureRecognizerShouldBegin(_ gr: UIGestureRecognizer) -> Bool {
-            guard let pan = gr as? UIPanGestureRecognizer,
-                  let view = pan.view else { return true }
-            let v = pan.velocity(in: view)
-            let speed = hypot(v.x, v.y)
-            guard speed > 20 else { return false }   // stationary → let long-press handle
-            return abs(v.x) > abs(v.y)               // horizontal wins → begin; vertical → don't
-        }
 
         @objc func handleLongPress(_ sender: UILongPressGestureRecognizer) {
             switch sender.state {
@@ -882,19 +1154,6 @@ private struct ChartScrubOverlay: UIViewRepresentable {
             case .changed:
                 onScrubChanged(sender.location(in: sender.view).x)
             case .ended, .cancelled, .failed:
-                onScrubEnded()
-            default: break
-            }
-        }
-
-        @objc func handlePan(_ sender: UIPanGestureRecognizer) {
-            switch sender.state {
-            case .began:
-                onScrubChanged(sender.location(in: sender.view).x)
-                UISelectionFeedbackGenerator().selectionChanged()
-            case .changed:
-                onScrubChanged(sender.location(in: sender.view).x)
-            case .ended, .cancelled:
                 onScrubEnded()
             default: break
             }
@@ -910,7 +1169,7 @@ private struct CardTitle: View {
     var body: some View {
         Text(title)
             .font(.heading20)
-            .foregroundStyle(Color(white: 0, opacity: 0.9))
+            .foregroundStyle(Color.gray900)
     }
 }
 
@@ -939,17 +1198,17 @@ private struct BalanceSummaryRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(label)
                     .font(.paragraphMedium30)
-                    .foregroundStyle(Color(white: 0, opacity: 0.9))
+                    .foregroundStyle(Color.gray900)
                 Text(maskedNumber)
                     .font(.paragraph20)
-                    .foregroundStyle(Color(white: 0, opacity: 0.55))
+                    .foregroundStyle(Color.gray500)
                     .tracking(1.4)
             }
             Spacer()
             Text(amount)
                 .font(.accountBalancePreview)
                 .lineSpacing(0)
-                .foregroundStyle(Color(white: 0, opacity: 0.9))
+                .foregroundStyle(Color.gray900)
         }
         .padding(.vertical, 12)
     }
@@ -965,11 +1224,11 @@ private struct KeyValueRow: View {
         HStack {
             Text(label)
                 .font(.paragraph30)
-                .foregroundStyle(Color(white: 0, opacity: 0.9))
+                .foregroundStyle(Color.gray900)
             Spacer()
             Text(amount)
                 .font(amountFont)
-                .foregroundStyle(Color(white: 0, opacity: 0.9))
+                .foregroundStyle(Color.gray900)
         }
         .frame(height: 32)
     }
@@ -979,7 +1238,7 @@ private struct KeyValueRow: View {
 private struct CardDivider: View {
     var body: some View {
         Rectangle()
-            .fill(Color(white: 0, opacity: 0.05))
+            .fill(Color.gray100)
             .frame(height: 1)
             .padding(.vertical, 8)
     }
@@ -1045,7 +1304,7 @@ private struct CreditCardCard: View {
                 // Figma specifies Bold 18pt here (not the standard heading20)
                 Text("Credit Card")
                     .font(.custom(AppFont.Text.bold, size: 18))
-                    .foregroundStyle(Color(white: 0, opacity: 0.9))
+                    .foregroundStyle(Color.gray900)
                     .padding(.bottom, 16)
 
                 BalanceSummaryRow(
@@ -1085,7 +1344,7 @@ private struct LoansCard: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Hayes Valley")
                             .font(.paragraphMedium30)
-                            .foregroundStyle(Color(white: 0, opacity: 0.9))
+                            .foregroundStyle(Color.gray900)
                         (
                             Text("$150,000")
                                 .font(.custom(AppFont.Text.medium, size: 14))

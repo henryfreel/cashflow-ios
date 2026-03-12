@@ -221,7 +221,7 @@ enum AppFinancials {
         }
     }()
 
-    // MARK: - Computed totals
+    // MARK: - Computed totals (2024)
 
     static var totalRevenue: Double  { monthly.map(\.revenue).reduce(0, +) }
     static var totalExpenses: Double { monthly.map(\.expenses).reduce(0, +) }
@@ -246,4 +246,197 @@ enum AppFinancials {
     static var netProfitFormatted: String    { formatted(netProfit) }
     static var totalRevenueFormatted: String { formatted(totalRevenue) }
     static var totalExpensesFormatted: String { formatted(totalExpenses) }
+
+    // =========================================================================
+    // MARK: - Time-travel data (multi-year/quarter/month navigation)
+    // =========================================================================
+
+    // MARK: Current date context & navigation bounds
+
+    static let currentYear    = 2024
+    static let currentMonth   = 12   // December
+    static let currentDay     = 15
+    static let currentQuarter = 4
+    static let minYear        = 2023  // How far back the user can navigate
+
+    // MARK: - 2023 Monthly Data
+    //
+    // 2023 was a slightly softer year for the business — similar seasonal shape
+    // but ~21% less net profit (~$180K vs ~$229K in 2024).
+    // Revenue ran about 9% lower; expenses about 6% lower (fixed costs stayed).
+    //
+    //   Annual revenue  : ~$1,057,019
+    //   Annual expenses : ~$876,559
+    //   Net profit      : ~$180,460  (~17.1% margin)
+
+    static let monthly2023: [MonthlyFinancial] = [
+        .init(id:  0, month: "J", fullMonth: "January",   revenue: 113_210.47, expenses:  74_481.83),  // net  38,728.64
+        .init(id:  1, month: "F", fullMonth: "February",  revenue: 105_423.19, expenses:  73_218.62),  // net  32,204.57
+        .init(id:  2, month: "M", fullMonth: "March",     revenue:  90_087.31, expenses:  74_026.44),  // net  16,060.87
+        .init(id:  3, month: "A", fullMonth: "April",     revenue:  79_267.83, expenses:  74_648.17),  // net   4,619.66
+        .init(id:  4, month: "M", fullMonth: "May",       revenue:  72_284.56, expenses:  85_391.72),  // net -13,107.16  deeper loss than 2024
+        .init(id:  5, month: "J", fullMonth: "June",      revenue:  73_936.48, expenses:  78_593.21),  // net  -4,656.73
+        .init(id:  6, month: "J", fullMonth: "July",      revenue:  76_911.29, expenses:  75_046.83),  // net   1,864.46
+        .init(id:  7, month: "A", fullMonth: "August",    revenue:  80_932.74, expenses:  75_908.19),  // net   5,024.55
+        .init(id:  8, month: "S", fullMonth: "September", revenue:  88_593.15, expenses:  75_341.87),  // net  13,251.28
+        .init(id:  9, month: "O", fullMonth: "October",   revenue:  94_152.38, expenses:  73_332.76),  // net  20,819.62
+        .init(id: 10, month: "N", fullMonth: "November",  revenue: 110_461.84, expenses:  73_541.27),  // net  36,920.57
+        .init(id: 11, month: "D", fullMonth: "December",  revenue:  81_757.43, expenses:  53_027.81),  // net  28,729.62
+    ]
+
+    // MARK: - Multi-year / multi-period accessors
+
+    /// Monthly financials for a given year (2023 or 2024).
+    static func monthlyData(year: Int) -> [MonthlyFinancial] {
+        year == 2023 ? monthly2023 : monthly
+    }
+
+    /// 13-week quarterly data for any supported year + quarter.
+    /// Q4 2024 delegates to the hand-crafted `quarterlyWeeks` array;
+    /// all other periods are computed proportionally from monthly data.
+    static func weeklyData(year: Int, quarter: Int) -> [WeeklyFinancial] {
+        if year == 2024 && quarter == 4 { return quarterlyWeeks }
+        return buildWeeklyData(year: year, quarter: quarter)
+    }
+
+    /// Daily data for any supported year + month.
+    /// December 2024 delegates to the hand-crafted `decemberDaily` array;
+    /// all other months are computed proportionally from monthly data.
+    static func dailyData(year: Int, month: Int) -> [DailyFinancial] {
+        if year == 2024 && month == 12 { return decemberDaily }
+        return buildDailyData(year: year, month: month)
+    }
+
+    // MARK: - Private: calendar helpers
+
+    private static func daysInMonth(year: Int, month: Int) -> Int {
+        switch month {
+        case 2:
+            let isLeap = (year % 4 == 0) && (year % 100 != 0 || year % 400 == 0)
+            return isLeap ? 29 : 28
+        case 4, 6, 9, 11: return 30
+        default:           return 31
+        }
+    }
+
+    private static let monthAbbrev = [
+        "Jan","Feb","Mar","Apr","May","Jun",
+        "Jul","Aug","Sep","Oct","Nov","Dec"
+    ]
+
+    // MARK: - Private: weekly data generator
+
+    /// Distributes 3 months of financial data into 13 seven-day weeks starting
+    /// on the first day of the quarter.  Each week's value is the proportional
+    /// share of its constituent month-days, giving mathematically consistent
+    /// totals without any hand-crafted numbers.
+    private static func buildWeeklyData(year: Int, quarter: Int) -> [WeeklyFinancial] {
+        let months = monthlyData(year: year)
+        let startMonth = (quarter - 1) * 3 + 1   // 1-indexed: Q1→1, Q2→4, Q3→7, Q4→10
+
+        var results: [WeeklyFinancial] = []
+        var curMonth = startMonth
+        var curDay   = 1
+
+        for weekIdx in 0..<13 {
+            var weekRev  = 0.0
+            var weekExp  = 0.0
+            let startM = curMonth
+            let startD = curDay
+            var daysLeft = 7
+            var m = curMonth
+            var d = curDay
+
+            // Accumulate exactly 7 calendar days across month boundaries
+            while daysLeft > 0 && m <= 12 {
+                let dim   = daysInMonth(year: year, month: m)
+                let avail = min(daysLeft, dim - d + 1)
+                let mData = months[m - 1]
+                let daily = 1.0 / Double(dim)
+                weekRev  += mData.revenue  * daily * Double(avail)
+                weekExp  += mData.expenses * daily * Double(avail)
+                daysLeft -= avail
+                d        += avail
+                if d > dim { d = 1; m += 1 }
+            }
+
+            // Compute end label (day before the new cursor position)
+            var endM = m
+            var endD = d - 1
+            if endD <= 0 {
+                endM -= 1
+                if endM >= 1 { endD = daysInMonth(year: year, month: endM) }
+            }
+            endM = max(1, min(12, endM))
+
+            // Format "Mon DD – Mon DD"
+            let sA = monthAbbrev[startM - 1]
+            let eA = monthAbbrev[endM   - 1]
+            let dateRange = startM == endM
+                ? "\(sA) \(startD) – \(sA) \(endD)"
+                : "\(sA) \(startD) – \(eA) \(endD)"
+
+            // All generated quarters are fully in the past — hasData == true for all weeks
+            results.append(WeeklyFinancial(
+                id: weekIdx, startLabel: "", dateRange: dateRange,
+                revenue: weekRev, expenses: weekExp
+            ))
+
+            curMonth = m
+            curDay   = d
+        }
+        return results
+    }
+
+    // MARK: - Private: daily data generator
+
+    /// Distributes a month's revenue and expenses into per-day values using a
+    /// deterministic sine-based pattern so the data looks organic but is
+    /// reproducible and always sums exactly to the monthly total.
+    private static func buildDailyData(year: Int, month: Int) -> [DailyFinancial] {
+        let months   = monthlyData(year: year)
+        let mData    = months[month - 1]
+        let totalDays = daysInMonth(year: year, month: month)
+
+        // How many days actually have data
+        let activeDays: Int
+        if year < currentYear || (year == currentYear && month < currentMonth) {
+            activeDays = totalDays   // completed month
+        } else if year == currentYear && month == currentMonth {
+            activeDays = currentDay  // current month, up to today
+        } else {
+            activeDays = 0           // future month
+        }
+
+        guard activeDays > 0 else {
+            return (1...totalDays).map { DailyFinancial(id: $0, revenue: 0, expenses: 0) }
+        }
+
+        // Generate weights: two overlapping sine waves for organic-looking variation
+        var revW = (1...activeDays).map { day -> Double in
+            let t = Double(day)
+            let s = Double(year) * 0.0011 + Double(month) * 0.013
+            return max(0.4, 1.0 + sin(t * 0.73 + s * 13.7) * 0.18
+                                + sin(t * 1.31 + s *  7.3) * 0.09)
+        }
+        var expW = (1...activeDays).map { day -> Double in
+            let t = Double(day)
+            let s = Double(year) * 0.0011 + Double(month) * 0.013
+            return max(0.4, 1.0 + cos(t * 0.61 + s * 11.3) * 0.14
+                                + cos(t * 1.73 + s *  5.9) * 0.07)
+        }
+
+        // Normalize so totals match the monthly record exactly
+        let revSum = revW.reduce(0, +)
+        let expSum = expW.reduce(0, +)
+        revW = revW.map { $0 / revSum * mData.revenue  }
+        expW = expW.map { $0 / expSum * mData.expenses }
+
+        return (1...totalDays).map { day in
+            if day <= activeDays {
+                return DailyFinancial(id: day, revenue: revW[day-1], expenses: expW[day-1])
+            }
+            return DailyFinancial(id: day, revenue: 0, expenses: 0)
+        }
+    }
 }
