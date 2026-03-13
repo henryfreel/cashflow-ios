@@ -4,7 +4,7 @@ import SwiftUI
 
 struct HomeView: View {
     @Binding var showBalance: Bool
-    @Binding var isScrolled: Bool
+    @Binding var showProfitLossDetail: Bool
 
     // contentOffset.y from the scroll view:
     //   0        → at rest
@@ -12,6 +12,7 @@ struct HomeView: View {
     //   negative → rubber-band overscroll pull-down
     @State private var contentOffsetY: CGFloat = 0
     @State private var greetingHeight: CGFloat = 0
+    @State private var isScrolled = false
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -27,16 +28,16 @@ struct HomeView: View {
                     }
 
                 VStack(spacing: 24) {
-                    ProfitLossCard()
+                    ProfitLossCard(showDetail: $showProfitLossDetail)
                     LocationsCard()
                     SavingsCard()
                     CreditCardCard()
                     LoansCard()
                 }
                 .padding(.horizontal, 24)
-                .padding(.bottom, 24)
             }
         }
+        .contentMargins(.bottom, 86, for: .scrollContent)
         // contentOffset.y alone is negative at rest (it includes the safe-area
         // top inset). Adding contentInsets.top normalises it so the value is:
         //   0        → at rest
@@ -59,7 +60,14 @@ struct HomeView: View {
                 }
             }
         }
-        .background(Color.gray50.ignoresSafeArea())
+        .background(Color.gray5.ignoresSafeArea())
+        .safeAreaInset(edge: .top, spacing: 0) {
+            TopNavigationBar(showBalance: showBalance, isScrolled: isScrolled)
+        }
+        .navigationDestination(isPresented: $showProfitLossDetail) {
+            ProfitLossDetailView()
+        }
+        .navigationBarHidden(true)
     }
 }
 
@@ -68,15 +76,9 @@ struct HomeView: View {
 private struct GreetingSection: View {
     var body: some View {
         VStack(spacing: 0) {
-            (
-                Text("You have ")
-                    .foregroundStyle(Color.gray900)
-                + Text(AppFinancials.netBalanceFormatted)
-                    .foregroundStyle(Color(red: 0, green: 106/255, blue: 1))
-                + Text(" across all your accounts")
-                    .foregroundStyle(Color.gray900)
-            )
-            .font(.heading30)
+            Text("You have \(Text(AppFinancials.netBalanceFormatted).foregroundStyle(Color.blue2)) across all your accounts")
+                .foregroundStyle(Color.gray1)
+                .font(.heading30)
             .lineSpacing(4)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.leading, 24)
@@ -126,12 +128,12 @@ private struct LauncherRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.paragraphMedium30)
-                    .foregroundStyle(Color.gray900)
+                    .foregroundStyle(Color.gray1)
 
                 if let sub = subtitle {
                     Text(sub)
                         .font(.paragraph20)
-                        .foregroundStyle(Color.gray500)
+                        .foregroundStyle(Color.gray2)
                 }
             }
 
@@ -141,12 +143,12 @@ private struct LauncherRow: View {
                 Text(amount)
                     .font(.accountBalancePreview)
                     .lineSpacing(0)
-                    .foregroundStyle(Color.gray900)
+                    .foregroundStyle(Color.gray1)
 
                 if let sub = amountSubtitle, !sub.isEmpty {
                     Text(sub)
                         .font(.paragraph20)
-                        .foregroundStyle(Color.gray500)
+                        .foregroundStyle(Color.gray2)
                 }
             }
         }
@@ -157,6 +159,8 @@ private struct LauncherRow: View {
 // MARK: - Profit & Loss Card
 
 private struct ProfitLossCard: View {
+    @Binding var showDetail: Bool
+
     @State private var selectedPeriod = "1Y"
     @State private var activeBarIndex: Int? = nil
     @State private var chartWidth: CGFloat = 0
@@ -463,15 +467,24 @@ private struct ProfitLossCard: View {
         return v < 0 ? "-\(abs)" : abs
     }
 
+    // Gap between bars, scaled to available chart width so the bar-to-gap
+    // ratio stays consistent across device sizes.
+    // Reference: 8pt gap at 310pt chart width (Figma). Clamped [3, 8].
+    private var adaptiveBarGap: CGFloat {
+        guard chartWidth > 0 else { return 8 }
+        return max(3, min(8, chartWidth * 8 / 310))
+    }
+
     // X center of bar slot i within the chart width
     private func barCenterX(for index: Int) -> CGFloat {
         if selectedPeriod == "1M" {
             let slotW = chartWidth / CGFloat(dayBars.count)
             return CGFloat(index) * slotW + slotW / 2
         }
+        let gap = adaptiveBarGap
         let count = selectedPeriod == "1Q" ? weekBars.count : bars.count
-        let barW = (chartWidth - CGFloat(count - 1) * 8) / CGFloat(count)
-        return CGFloat(index) * (barW + 8) + barW / 2
+        let barW = (chartWidth - CGFloat(count - 1) * gap) / CGFloat(count)
+        return CGFloat(index) * (barW + gap) + barW / 2
     }
 
     // Bar index that contains x, clamped to valid range
@@ -480,9 +493,10 @@ private struct ProfitLossCard: View {
             let slotW = chartWidth / CGFloat(dayBars.count)
             return max(0, min(dayBars.count - 1, Int(x / slotW)))
         }
+        let gap = adaptiveBarGap
         let count = selectedPeriod == "1Q" ? weekBars.count : bars.count
-        let barW = (chartWidth - CGFloat(count - 1) * 8) / CGFloat(count)
-        return max(0, min(count - 1, Int(x / (barW + 8))))
+        let barW = (chartWidth - CGFloat(count - 1) * gap) / CGFloat(count)
+        return max(0, min(count - 1, Int(x / (barW + gap))))
     }
 
     private var periodSubtitle: String {
@@ -498,11 +512,11 @@ private struct ProfitLossCard: View {
     }
 
     private func pillForeground(_ period: String) -> Color {
-        period == selectedPeriod ? Color.gray500 : Color.gray300
+        period == selectedPeriod ? Color.gray2 : Color.gray3
     }
 
     private func pillBackground(_ period: String) -> Color {
-        period == selectedPeriod ? Color.gray100 : Color.clear
+        period == selectedPeriod ? Color.gray4 : Color.clear
     }
 
     private var periodPicker: some View {
@@ -539,7 +553,7 @@ private struct ProfitLossCard: View {
                 HStack(spacing: 0) {
                     Text("Profit & Loss")
                         .font(.heading20)
-                        .foregroundStyle(Color.gray900)
+                        .foregroundStyle(Color.gray1)
 
                     Spacer()
 
@@ -550,11 +564,11 @@ private struct ProfitLossCard: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(formattedValue(displayedProfit))
                         .font(.display10)
-                        .foregroundStyle(Color.gray900)
+                        .foregroundStyle(Color.gray1)
 
                     Text(periodSubtitle)
                         .font(.paragraph20)
-                        .foregroundStyle(Color.gray500)
+                        .foregroundStyle(Color.gray2)
                 }
                 .padding(.top, 8)
                 .padding(.bottom, 56)
@@ -575,6 +589,13 @@ private struct ProfitLossCard: View {
             .padding(.horizontal, 24)
             .padding(.top, 24)
             .padding(.bottom, 12)
+            // Tap anywhere on the card (except period pills, which handle their own taps)
+            // navigates to the detail page. Guard prevents accidental navigation mid-scrub.
+            .contentShape(Rectangle())
+            .onTapGesture {
+                guard activeBarIndex == nil else { return }
+                showDetail = true
+            }
         }
         // Tooltip lives OUTSIDE CardContainer's clipShape so it can travel to screen edges.
         // Y is driven by the measured chartTopInCard: tooltip bottom = chartTopInCard - 8pt,
@@ -666,9 +687,10 @@ private struct ProfitLossCard: View {
 
     @ViewBuilder
     private var chartArea: some View {
+        let gap = adaptiveBarGap
         VStack(spacing: 8) {
             // Bars row
-            HStack(spacing: 8) {
+            HStack(spacing: gap) {
                 ForEach(bars) { bar in
                     BarColumn(bar: bar,
                               isActive: activeBarIndex == bar.id,
@@ -678,7 +700,7 @@ private struct ProfitLossCard: View {
             .frame(height: 120)
             .contentShape(Rectangle())
             .overlay(alignment: .top) {
-                Color.gray100
+                Color.gray4
                     .frame(height: 1)
                     .offset(y: 60)
             }
@@ -699,15 +721,15 @@ private struct ProfitLossCard: View {
             .offset(x: bounceOffset)
 
             // Month labels — fixed, never offset.
-            HStack(spacing: 8) {
+            HStack(spacing: gap) {
                 ForEach(bars) { bar in
                     Text(bar.month)
                         .font(activeBarIndex == bar.id
                               ? .custom(AppFont.Text.semiBold, size: 10)
                               : .custom(AppFont.Text.regular,  size: 10))
                         .foregroundStyle(activeBarIndex == bar.id
-                            ? Color.gray900
-                            : Color.gray300)
+                            ? Color.gray1
+                            : Color.gray3)
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -736,7 +758,7 @@ private struct ProfitLossCard: View {
             .frame(height: 120)
             .contentShape(Rectangle())
             .overlay(alignment: .top) {
-                Color.gray100
+                Color.gray4
                     .frame(height: 1)
                     .offset(y: 60)
             }
@@ -774,8 +796,8 @@ private struct ProfitLossCard: View {
                                           ? .custom(AppFont.Text.semiBold, size: 10)
                                           : .custom(AppFont.Text.regular,  size: 10))
                                     .foregroundStyle(isActive
-                                        ? Color.gray900
-                                        : Color.gray300)
+                                        ? Color.gray1
+                                        : Color.gray3)
                                     .frame(width: slotW * 2)
                             }
                         }
@@ -791,9 +813,10 @@ private struct ProfitLossCard: View {
 
     @ViewBuilder
     private var quarterlyChartArea: some View {
+        let gap = adaptiveBarGap
         VStack(spacing: 8) {
             // Bars row — proportional width like 1Y, but 14 slots (12 data + 2 future)
-            HStack(spacing: 8) {
+            HStack(spacing: gap) {
                 ForEach(weekBars) { bar in
                     WeekColumn(bar: bar,
                                isActive: activeBarIndex == bar.id,
@@ -803,7 +826,7 @@ private struct ProfitLossCard: View {
             .frame(height: 120)
             .contentShape(Rectangle())
             .overlay(alignment: .top) {
-                Color.gray100
+                Color.gray4
                     .frame(height: 1)
                     .offset(y: 60)
             }
@@ -821,15 +844,15 @@ private struct ProfitLossCard: View {
             .offset(x: bounceOffset)
 
             // Week labels — fixed, never offset.
-            HStack(spacing: 8) {
+            HStack(spacing: gap) {
                 ForEach(weekBars) { bar in
                     Text("\(bar.id + 1)")
                         .font(activeBarIndex == bar.id
                               ? .custom(AppFont.Text.semiBold, size: 10)
                               : .custom(AppFont.Text.regular,  size: 10))
                         .foregroundStyle(activeBarIndex == bar.id
-                            ? Color.gray900
-                            : Color.gray300)
+                            ? Color.gray1
+                            : Color.gray3)
                         .frame(maxWidth: .infinity)
                         .minimumScaleFactor(0.5)
                 }
@@ -852,15 +875,11 @@ private struct ProfitLossCard: View {
 
         private var fillColor: Color {
             guard bar.hasData else { return .clear }
-            let dimmed = isScrubbing ? !isActive : bar.isCurrentWeek
+            let dimmed = isScrubbing && !isActive
             if bar.height < 0 {
-                return dimmed
-                    ? Color(red: 255/255, green: 204/255, blue: 213/255)
-                    : Color(red: 204/255, green: 0,       blue: 35/255)
+                return dimmed ? Color.red5 : Color.red2
             } else {
-                return dimmed
-                    ? Color(red: 204/255, green: 255/255, blue: 221/255)
-                    : Color(red: 0, green: 178/255, blue: 59/255)
+                return dimmed ? Color.green5 : Color.green1
             }
         }
 
@@ -872,15 +891,19 @@ private struct ProfitLossCard: View {
                 if bar.hasData && absH > 0 {
                     Color.clear.frame(height: isNegative ? baseline : max(0, baseline - absH))
 
-                    if isNegative {
-                        UnevenRoundedRectangle(bottomLeadingRadius: 4, bottomTrailingRadius: 4)
-                            .fill(fillColor)
-                            .frame(height: absH)
-                    } else {
-                        UnevenRoundedRectangle(topLeadingRadius: 4, topTrailingRadius: 4)
-                            .fill(fillColor)
-                            .frame(height: absH)
-                    }
+            if isNegative {
+                    UnevenRoundedRectangle(bottomLeadingRadius: 4, bottomTrailingRadius: 4)
+                        .fill(fillColor)
+                        .overlay { if bar.isCurrentWeek { DiagonalStripes() } }
+                        .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 4, bottomTrailingRadius: 4))
+                        .frame(height: absH)
+                } else {
+                    UnevenRoundedRectangle(topLeadingRadius: 4, topTrailingRadius: 4)
+                        .fill(fillColor)
+                        .overlay { if bar.isCurrentWeek { DiagonalStripes() } }
+                        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 4, topTrailingRadius: 4))
+                        .frame(height: absH)
+                }
 
                     Color.clear.frame(height: isNegative ? max(0, baseline - absH) : baseline)
                 }
@@ -902,15 +925,11 @@ private struct ProfitLossCard: View {
         //   • While scrubbing: non-active bars are dimmed
         //   • At rest: the current (partial) month is always dimmed
         private var fillColor: Color {
-            let dimmed = isScrubbing ? !isActive : bar.isCurrentMonth
+            let dimmed = isScrubbing && !isActive
             if bar.height < 0 {
-                return dimmed
-                    ? Color(red: 255/255, green: 204/255, blue: 213/255)  // Critical/30  #FFCCD5
-                    : Color(red: 204/255, green: 0,       blue: 35/255)   // Critical/Fill #CC0023
+                return dimmed ? Color.red5 : Color.red2
             } else {
-                return dimmed
-                    ? Color(red: 204/255, green: 255/255, blue: 221/255)  // Success/30   #CCFFDD
-                    : Color(red: 0, green: 178/255, blue: 59/255)         // Success/Fill #00B23B
+                return dimmed ? Color.green5 : Color.green1
             }
         }
 
@@ -924,10 +943,14 @@ private struct ProfitLossCard: View {
                 if isNegative {
                     UnevenRoundedRectangle(bottomLeadingRadius: 4, bottomTrailingRadius: 4)
                         .fill(fillColor)
+                        .overlay { if bar.isCurrentMonth { DiagonalStripes() } }
+                        .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 4, bottomTrailingRadius: 4))
                         .frame(height: abs)
                 } else {
                     UnevenRoundedRectangle(topLeadingRadius: 4, topTrailingRadius: 4)
                         .fill(fillColor)
+                        .overlay { if bar.isCurrentMonth { DiagonalStripes() } }
+                        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 4, topTrailingRadius: 4))
                         .frame(height: abs)
                 }
 
@@ -951,15 +974,11 @@ private struct ProfitLossCard: View {
 
         private var fillColor: Color {
             guard bar.hasData else { return .clear }
-            let dimmed = isScrubbing ? !isActive : bar.isToday
+            let dimmed = isScrubbing && !isActive
             if bar.height < 0 {
-                return dimmed
-                    ? Color(red: 255/255, green: 204/255, blue: 213/255)
-                    : Color(red: 204/255, green: 0,       blue: 35/255)
+                return dimmed ? Color.red5 : Color.red2
             } else {
-                return dimmed
-                    ? Color(red: 204/255, green: 255/255, blue: 221/255)
-                    : Color(red: 0, green: 178/255, blue: 59/255)
+                return dimmed ? Color.green5 : Color.green1
             }
         }
 
@@ -975,10 +994,14 @@ private struct ProfitLossCard: View {
                         if isNegative {
                             UnevenRoundedRectangle(bottomLeadingRadius: 2, bottomTrailingRadius: 2)
                                 .fill(fillColor)
+                                .overlay { if bar.isToday { DiagonalStripes() } }
+                                .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 2, bottomTrailingRadius: 2))
                                 .frame(width: barWidth, height: absH)
                         } else {
                             UnevenRoundedRectangle(topLeadingRadius: 2, topTrailingRadius: 2)
                                 .fill(fillColor)
+                                .overlay { if bar.isToday { DiagonalStripes() } }
+                                .clipShape(UnevenRoundedRectangle(topLeadingRadius: 2, topTrailingRadius: 2))
                                 .frame(width: barWidth, height: absH)
                         }
 
@@ -989,6 +1012,26 @@ private struct ProfitLossCard: View {
             .frame(maxWidth: .infinity, maxHeight: 120)
             .contentShape(Rectangle())
             .animation(.easeInOut(duration: 0.15), value: isActive)
+        }
+    }
+}
+
+// MARK: - Diagonal stripe overlay (current / partial period)
+
+/// White 45° diagonal lines at 2 pt width / 2 pt gap.
+/// Apply as an `.overlay` then `.clipShape(...)` to hatch any bar shape.
+private struct DiagonalStripes: View {
+    var body: some View {
+        Canvas { ctx, size in
+            let pitch: CGFloat = 4 * 2.squareRoot()
+            var x: CGFloat = -size.height
+            while x < size.width + size.height {
+                var p = Path()
+                p.move(to:    CGPoint(x: x,               y: size.height))
+                p.addLine(to: CGPoint(x: x + size.height, y: 0))
+                ctx.stroke(p, with: .color(.white), lineWidth: 2)
+                x += pitch
+            }
         }
     }
 }
@@ -1013,7 +1056,7 @@ private struct BarScrubTooltip: View {
         .multilineTextAlignment(.center)
         .padding(.horizontal, 8)
         .padding(.vertical, 2)
-        .background(Color.gray900)
+        .background(Color.gray1)
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
@@ -1040,7 +1083,7 @@ private struct BarScrubTooltip: View {
 ///             4 dots → [5, 7, 5, 3]  etc.
 ///
 /// A sliding window keeps the active dot centred as much as possible.
-private struct ChartPageControl: View {
+struct ChartPageControl: View {
     let numberOfPages: Int
     let currentPage:   Int
 
@@ -1082,7 +1125,7 @@ private struct ChartPageControl: View {
                                         : dist == 3 ? 0.17
                                         :             0.10
                     Circle()
-                        .fill(Color.gray900.opacity(opacity))
+                        .fill(Color.gray1.opacity(opacity))
                         .frame(width: size, height: size)
                         .transition(.opacity)
                 }
@@ -1169,7 +1212,7 @@ private struct CardTitle: View {
     var body: some View {
         Text(title)
             .font(.heading20)
-            .foregroundStyle(Color.gray900)
+            .foregroundStyle(Color.gray1)
     }
 }
 
@@ -1198,17 +1241,17 @@ private struct BalanceSummaryRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(label)
                     .font(.paragraphMedium30)
-                    .foregroundStyle(Color.gray900)
+                    .foregroundStyle(Color.gray1)
                 Text(maskedNumber)
                     .font(.paragraph20)
-                    .foregroundStyle(Color.gray500)
+                    .foregroundStyle(Color.gray2)
                     .tracking(1.4)
             }
             Spacer()
             Text(amount)
                 .font(.accountBalancePreview)
                 .lineSpacing(0)
-                .foregroundStyle(Color.gray900)
+                .foregroundStyle(Color.gray1)
         }
         .padding(.vertical, 12)
     }
@@ -1224,11 +1267,11 @@ private struct KeyValueRow: View {
         HStack {
             Text(label)
                 .font(.paragraph30)
-                .foregroundStyle(Color.gray900)
+                .foregroundStyle(Color.gray1)
             Spacer()
             Text(amount)
                 .font(amountFont)
-                .foregroundStyle(Color.gray900)
+                .foregroundStyle(Color.gray1)
         }
         .frame(height: 32)
     }
@@ -1238,7 +1281,7 @@ private struct KeyValueRow: View {
 private struct CardDivider: View {
     var body: some View {
         Rectangle()
-            .fill(Color.gray100)
+            .fill(Color.gray4)
             .frame(height: 1)
             .padding(.vertical, 8)
     }
@@ -1304,7 +1347,7 @@ private struct CreditCardCard: View {
                 // Figma specifies Bold 18pt here (not the standard heading20)
                 Text("Credit Card")
                     .font(.custom(AppFont.Text.bold, size: 18))
-                    .foregroundStyle(Color.gray900)
+                    .foregroundStyle(Color.gray1)
                     .padding(.bottom, 16)
 
                 BalanceSummaryRow(
@@ -1344,14 +1387,10 @@ private struct LoansCard: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Hayes Valley")
                             .font(.paragraphMedium30)
-                            .foregroundStyle(Color.gray900)
-                        (
-                            Text("$150,000")
-                                .font(.custom(AppFont.Text.medium, size: 14))
-                            + Text(" available")
-                                .font(.paragraph20)
-                        )
-                        .foregroundStyle(Color(red: 0, green: 106/255, blue: 1))
+                            .foregroundStyle(Color.gray1)
+                        Text("\(Text("$150,000").font(.custom(AppFont.Text.medium, size: 14))) available")
+                            .font(.paragraph20)
+                            .foregroundStyle(Color.blue2)
                     }
                     Spacer()
                     Button("View offer") {}
@@ -1381,5 +1420,5 @@ private struct LoansCard: View {
 }
 
 #Preview {
-    HomeView(showBalance: .constant(false), isScrolled: .constant(false))
+    HomeView(showBalance: .constant(false), showProfitLossDetail: .constant(false))
 }

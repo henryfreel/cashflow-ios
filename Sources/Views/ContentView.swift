@@ -7,15 +7,14 @@ enum Tab {
 struct ContentView: View {
     @State private var selectedTab: Tab = .home
     @State private var showBalance = false
-    @State private var isScrolled = false
+    @State private var showProfitLossDetail = false
 
     var body: some View {
         tabContent
-            .safeAreaInset(edge: .top, spacing: 0) {
-                TopNavigationBar(showBalance: showBalance, isScrolled: isScrolled)
-            }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                BottomTabBar(selectedTab: $selectedTab)
+                BottomTabBar(selectedTab: $selectedTab, onHomeTap: {
+                    showProfitLossDetail = false
+                })
             }
             .onChange(of: selectedTab) { _, newTab in
                 if newTab != .home { showBalance = false }
@@ -24,24 +23,15 @@ struct ContentView: View {
 
     @ViewBuilder
     private var tabContent: some View {
-        switch selectedTab {
-        case .home:
-            HomeView(showBalance: $showBalance, isScrolled: $isScrolled)
-        case .transfer, .analytics, .more:
-            ScrollView {
-                Text("Coming soon")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .padding(24)
-            }
-            .background(Color.gray50.ignoresSafeArea())
+        NavigationStack {
+            HomeView(showBalance: $showBalance, showProfitLossDetail: $showProfitLossDetail)
         }
     }
 }
 
 // MARK: - Top Navigation Bar
 
-private struct TopNavigationBar: View {
+struct TopNavigationBar: View {
     let showBalance: Bool
     let isScrolled: Bool
 
@@ -70,7 +60,7 @@ private struct TopNavigationBar: View {
                     .frame(width: 24, height: 24)
 
                 Circle()
-                    .fill(Color(red: 204 / 255, green: 0 / 255, blue: 35 / 255))
+                    .fill(Color.red2)
                     .frame(width: 6, height: 6)
                     .offset(x: 2, y: -2)
             }
@@ -107,7 +97,7 @@ private struct TopNavigationBar: View {
         .overlay(alignment: .bottom) {
             if isScrolled {
                 Rectangle()
-                    .fill(Color.gray100)
+                    .fill(Color.gray4)
                     .frame(height: 1)
                     .transition(.opacity)
             }
@@ -119,32 +109,31 @@ private struct TopNavigationBar: View {
 // MARK: - Bottom Tab Bar
 
 // Figma frame: 4 tabs × 94pt wide, centered on 390pt screen.
-// Top border: 1px gray100 (matches nav bar bottom separator). Top padding: 13pt. Tab height: 48pt.
-// Active color: #006AFF. Inactive: gray900.
+// Top border: 1px gray4 (matches nav bar bottom separator). Top padding: 13pt. Tab height: 48pt.
+// Active color: #006AFF. Inactive: gray1.
 private struct BottomTabBar: View {
     @Binding var selectedTab: Tab
+    let onHomeTap: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
             // 1px top border
             Rectangle()
-                .fill(Color.gray100)
+                .fill(Color.gray4)
                 .frame(height: 1)
 
             // Tabs row: 13pt top padding, 48pt tall tabs
             HStack(spacing: 0) {
                 TabItem(icon: "TabHome", label: "Home", isSelected: selectedTab == .home) {
+                    onHomeTap()
                     selectedTab = .home
                 }
-                TabItem(icon: "TabTransfer", label: "Transfer", isSelected: selectedTab == .transfer) {
-                    selectedTab = .transfer
-                }
-                TabItem(icon: "TabAnalytics", label: "Analytics", isSelected: selectedTab == .analytics) {
-                    selectedTab = .analytics
-                }
-                TabItem(icon: "TabMore", label: "More", isSelected: selectedTab == .more) {
-                    selectedTab = .more
-                }
+                TabItem(icon: "TabTransfer", label: "Transfer", isSelected: false) {}
+                    .allowsHitTesting(false)
+                TabItem(icon: "TabAnalytics", label: "Analytics", isSelected: false) {}
+                    .allowsHitTesting(false)
+                TabItem(icon: "TabMore", label: "More", isSelected: false) {}
+                    .allowsHitTesting(false)
             }
             .padding(.top, 13)
         }
@@ -163,7 +152,7 @@ private struct TabItem: View {
     private var color: Color {
         isSelected
             ? Color(red: 0, green: 106 / 255, blue: 1)
-            : Color.gray900
+            : Color.gray1
     }
 
     var body: some View {
@@ -197,6 +186,33 @@ private struct JewelMark: View {
     }
 }
 
-#Preview {
-    ContentView()
+#if DEBUG
+// ContentView renders the full app tree (HomeView + NavigationStack + Liquid Glass).
+// Use individual view previews for faster iteration; this one is intentionally
+// lightweight so it doesn't time out the canvas.
+#Preview("Tab shell") {
+    VStack(spacing: 0) {
+        Spacer()
+        Text("Use HomeView or ProfitLossDetailView previews")
+            .font(.body)
+            .foregroundStyle(.secondary)
+        Spacer()
+    }
+    .safeAreaInset(edge: .bottom, spacing: 0) {
+        VStack(spacing: 0) {
+            Rectangle().fill(Color.gray4).frame(height: 1)
+            HStack(spacing: 0) {
+                ForEach(["Home", "Transfer", "Analytics", "More"], id: \.self) { label in
+                    Text(label)
+                        .font(.caption)
+                        .foregroundStyle(label == "Home" ? Color.blue2 : Color.gray1)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 13)
+                        .padding(.bottom, 8)
+                }
+            }
+        }
+        .background(Color.white.ignoresSafeArea(edges: .bottom))
+    }
 }
+#endif

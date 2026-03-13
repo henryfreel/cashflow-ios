@@ -27,9 +27,13 @@ enum AppFont {
 
 extension Font {
     // Display — Square Sans Display
+    static let display20 = Font.custom(AppFont.Display.bold,   size: 56) // Display/20 — full-page hero amount
     static let display10 = Font.custom(AppFont.Display.bold,   size: 32) // Display/10
     static let heading30 = Font.custom(AppFont.Display.bold,   size: 26) // Heading/30
     static let heading20 = Font.custom(AppFont.Display.bold,   size: 19) // Heading/20
+
+    /// Header/2 — chart period header and metric totals. Size 20, line height 24.
+    static let header2   = Font.custom(AppFont.Display.bold,   size: 20)
 
     /// Account balance preview — used for all card balance amounts (Locations, Savings, Credit Card, Loans).
     /// Change this one token to restyle every balance figure across all cards at once.
@@ -37,8 +41,18 @@ extension Font {
 
     // Text — Square Sans Text
     static let paragraphSemibold30 = Font.custom(AppFont.Text.semiBold, size: 16) // Paragraph/Semibold 30
+    static let paragraphSemibold20 = Font.custom(AppFont.Text.semiBold, size: 14) // Paragraph/Semibold 20
     static let paragraphSemibold10 = Font.custom(AppFont.Text.semiBold, size: 12) // Paragraph/Semibold 10
     static let paragraphMedium30   = Font.custom(AppFont.Text.medium,   size: 16) // Paragraph/Medium 30
     static let paragraph30         = Font.custom(AppFont.Text.regular,  size: 16) // Paragraph/30
     static let paragraph20         = Font.custom(AppFont.Text.regular,  size: 14) // Paragraph/20
+}
+
+// MARK: - Composite style modifiers
+
+extension View {
+    /// Applies the Header/2 design token: Display Bold 20 pt with a 24 pt line height.
+    func header2Style() -> some View {
+        self.font(.header2).lineSpacing(4)
+    }
 }

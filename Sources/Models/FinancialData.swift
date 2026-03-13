@@ -56,6 +56,24 @@ struct Transaction: Identifiable {
     let isReconciled: Bool
 }
 
+// MARK: - Generic Bar Chart Entry
+//
+// Unified data type for the P&L detail bar chart across all three period modes
+// (Year → monthly, Quarter → weekly, Month → daily).
+
+struct BarChartEntry: Identifiable {
+    let id: Int           // 0-based index within its period
+    let label: String     // short x-axis label (e.g. "J", "1", "15")
+    let fullLabel: String // full display label (e.g. "January", "Week 1", "Dec 15")
+    let revenue: Double
+    let expenses: Double
+    /// True when this bar represents the current (partial) period — rendered with diagonal hatching.
+    var isCurrent: Bool = false
+
+    var netProfit: Double { revenue - expenses }
+    var hasData: Bool { revenue > 0 || expenses > 0 }
+}
+
 // MARK: - Monthly Financial Record
 
 struct MonthlyFinancial: Identifiable {

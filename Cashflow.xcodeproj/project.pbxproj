@@ -13,15 +13,18 @@
 		39AC5B8E7217F56851BE4AD3 /* FinancialData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B25944740FD4301F20DDF253 /* FinancialData.swift */; };
 		5263090F9A50B13269E4C042 /* SquareSansDisplay-MediumCondensed.otf in Resources */ = {isa = PBXBuildFile; fileRef = A4785E30E6141298A7CD9494 /* SquareSansDisplay-MediumCondensed.otf */; };
 		54B2683CDDEEE3A63B241F62 /* SquareSansText-Regular.otf in Resources */ = {isa = PBXBuildFile; fileRef = D75E7118B3996645CC0BB200 /* SquareSansText-Regular.otf */; };
+		5BEEDC2B0D5A607F13AD3B85 /* PLYearBarChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1533699A778E5E97919D8B9 /* PLYearBarChart.swift */; };
 		5CE421A79BE5C10C1171F84A /* SquareSansText-SemiBold.otf in Resources */ = {isa = PBXBuildFile; fileRef = 646902238A230AEF1D0670DC /* SquareSansText-SemiBold.otf */; };
 		5F0CB668A4806313EAF902FE /* SquareSansDisplay-MediumExpanded.otf in Resources */ = {isa = PBXBuildFile; fileRef = DDE36791416AE91812AE1A91 /* SquareSansDisplay-MediumExpanded.otf */; };
 		7B6EF6281F09F08FEFD33996 /* SquareSansDisplay-BoldCondensed.otf in Resources */ = {isa = PBXBuildFile; fileRef = F7355B151DE363A0DD494076 /* SquareSansDisplay-BoldCondensed.otf */; };
+		7CD6830C6B9A897417321512 /* ProfitLossDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2788F2A9454E91310E17B663 /* ProfitLossDetailView.swift */; };
 		8506BBD5F64C3343128A4BB6 /* SquareSansText-Medium.otf in Resources */ = {isa = PBXBuildFile; fileRef = 8A39108E1676068273E8FCF0 /* SquareSansText-Medium.otf */; };
 		8FFFDE13AE132346A9115E7F /* CashflowApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1413207BF0D392D94D54B356 /* CashflowApp.swift */; };
 		930C8C55E2CE119DAC2432AD /* SquareSansDisplay-RegularCondensed.otf in Resources */ = {isa = PBXBuildFile; fileRef = 31272160B79FC51BCBBCC4BB /* SquareSansDisplay-RegularCondensed.otf */; };
 		97FDB443D63DC9D9CE787F32 /* SquareSansDisplay-Medium.otf in Resources */ = {isa = PBXBuildFile; fileRef = CF43ED53012756AFF4739120 /* SquareSansDisplay-Medium.otf */; };
 		9B1084A317E29A33D9A40951 /* SquareSansText-SemiBoldItalic.otf in Resources */ = {isa = PBXBuildFile; fileRef = AC88640991B169E85610792C /* SquareSansText-SemiBoldItalic.otf */; };
 		AE65CBF87F94E5D0326EAF81 /* SquareSansDisplay-Bold.otf in Resources */ = {isa = PBXBuildFile; fileRef = ED237567398128888E470E36 /* SquareSansDisplay-Bold.otf */; };
+		AF50442063AAA6354656CC40 /* SecondaryNavBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C32B5807B99DFCDF3FF51C9 /* SecondaryNavBar.swift */; };
 		B70FD9E3BE4080C0C3BB1C9C /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F2D32A0DAD842D2F22D7D3D /* HomeView.swift */; };
 		B935C52DBA720755D6C25662 /* SquareSansText-Italic.otf in Resources */ = {isa = PBXBuildFile; fileRef = 041DCC7D5CD749C7902A6E9B /* SquareSansText-Italic.otf */; };
 		BC36FFF436AB320B61E77188 /* SquareSansText-MediumItalic.otf in Resources */ = {isa = PBXBuildFile; fileRef = AACDB4A56F87F55B57342118 /* SquareSansText-MediumItalic.otf */; };
@@ -48,13 +51,15 @@
 /* Begin PBXFileReference section */
 		041DCC7D5CD749C7902A6E9B /* SquareSansText-Italic.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-Italic.otf"; sourceTree = "<group>"; };
 		1413207BF0D392D94D54B356 /* CashflowApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CashflowApp.swift; sourceTree = "<group>"; };
+		2788F2A9454E91310E17B663 /* ProfitLossDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfitLossDetailView.swift; sourceTree = "<group>"; };
 		31272160B79FC51BCBBCC4BB /* SquareSansDisplay-RegularCondensed.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansDisplay-RegularCondensed.otf"; sourceTree = "<group>"; };
 		420847885186BE125C7DE757 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5A5A8200AFB4DD3FA0BA42B4 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		5F2D32A0DAD842D2F22D7D3D /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
-		6451CE345E21878B3BF62B76 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		6451CE345E21878B3BF62B76 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
 		646902238A230AEF1D0670DC /* SquareSansText-SemiBold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-SemiBold.otf"; sourceTree = "<group>"; };
 		713C43D08447454AAB989F7C /* SquareSansText-BoldItalic.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-BoldItalic.otf"; sourceTree = "<group>"; };
+		7C32B5807B99DFCDF3FF51C9 /* SecondaryNavBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecondaryNavBar.swift; sourceTree = "<group>"; };
 		84FEEC42D87BFE813F5FB01C /* SquareSansText-Bold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-Bold.otf"; sourceTree = "<group>"; };
 		8A39108E1676068273E8FCF0 /* SquareSansText-Medium.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-Medium.otf"; sourceTree = "<group>"; };
 		8C365268127520CD1EBE7721 /* CashflowTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CashflowTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -73,8 +78,9 @@
 		D512AE627C4BD3DA1E8F0D5C /* SquareSansDisplay-RegularExpanded.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansDisplay-RegularExpanded.otf"; sourceTree = "<group>"; };
 		D75E7118B3996645CC0BB200 /* SquareSansText-Regular.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-Regular.otf"; sourceTree = "<group>"; };
 		DDE36791416AE91812AE1A91 /* SquareSansDisplay-MediumExpanded.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansDisplay-MediumExpanded.otf"; sourceTree = "<group>"; };
-		ECDF5532177CE790D19F0FD6 /* Cashflow.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Cashflow.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		ECDF5532177CE790D19F0FD6 /* Cashflow.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cashflow.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED237567398128888E470E36 /* SquareSansDisplay-Bold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansDisplay-Bold.otf"; sourceTree = "<group>"; };
+		F1533699A778E5E97919D8B9 /* PLYearBarChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PLYearBarChart.swift; sourceTree = "<group>"; };
 		F7355B151DE363A0DD494076 /* SquareSansDisplay-BoldCondensed.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansDisplay-BoldCondensed.otf"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -136,6 +142,9 @@
 			children = (
 				5A5A8200AFB4DD3FA0BA42B4 /* ContentView.swift */,
 				5F2D32A0DAD842D2F22D7D3D /* HomeView.swift */,
+				F1533699A778E5E97919D8B9 /* PLYearBarChart.swift */,
+				2788F2A9454E91310E17B663 /* ProfitLossDetailView.swift */,
+				7C32B5807B99DFCDF3FF51C9 /* SecondaryNavBar.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -228,7 +237,6 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					DE28C2C2443C047CEE312DFE = {
-						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -293,6 +301,9 @@
 				39AC5B8E7217F56851BE4AD3 /* FinancialData.swift in Sources */,
 				2BCF1AED307D405D9C19043D /* Font+App.swift in Sources */,
 				B70FD9E3BE4080C0C3BB1C9C /* HomeView.swift in Sources */,
+				5BEEDC2B0D5A607F13AD3B85 /* PLYearBarChart.swift in Sources */,
+				7CD6830C6B9A897417321512 /* ProfitLossDetailView.swift in Sources */,
+				AF50442063AAA6354656CC40 /* SecondaryNavBar.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -474,7 +485,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 2EXWMSS3AZ;
 				INFOPLIST_FILE = Sources/App/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Cashflow;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -494,7 +505,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 2EXWMSS3AZ;
 				INFOPLIST_FILE = Sources/App/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Cashflow;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
