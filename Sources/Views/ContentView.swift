@@ -60,7 +60,7 @@ struct TopNavigationBar: View {
                     .frame(width: 24, height: 24)
 
                 Circle()
-                    .fill(Color.red2)
+                    .fill(Color.red3)
                     .frame(width: 6, height: 6)
                     .offset(x: 2, y: -2)
             }
@@ -84,7 +84,7 @@ struct TopNavigationBar: View {
                     // Figma Secondary Nav: Heading/20, color #006AFF
                     Text(AppFinancials.netBalanceFormatted)
                         .font(.heading20)
-                        .foregroundStyle(Color(red: 0, green: 106 / 255, blue: 1))
+                        .foregroundStyle(Color.blue3)
                         // Enters sliding down from above; exits sliding back up
                         .transition(.asymmetric(
                             insertion: .offset(y: -14).combined(with: .opacity),
@@ -97,7 +97,7 @@ struct TopNavigationBar: View {
         .overlay(alignment: .bottom) {
             if isScrolled {
                 Rectangle()
-                    .fill(Color.gray4)
+                    .fill(Color.gray5)
                     .frame(height: 1)
                     .transition(.opacity)
             }
@@ -109,7 +109,7 @@ struct TopNavigationBar: View {
 // MARK: - Bottom Tab Bar
 
 // Figma frame: 4 tabs × 94pt wide, centered on 390pt screen.
-// Top border: 1px gray4 (matches nav bar bottom separator). Top padding: 13pt. Tab height: 48pt.
+// Top border: 1px gray5 (matches nav bar bottom separator). Top padding: 13pt. Tab height: 48pt.
 // Active color: #006AFF. Inactive: gray1.
 private struct BottomTabBar: View {
     @Binding var selectedTab: Tab
@@ -119,7 +119,7 @@ private struct BottomTabBar: View {
         VStack(spacing: 0) {
             // 1px top border
             Rectangle()
-                .fill(Color.gray4)
+                .fill(Color.gray5)
                 .frame(height: 1)
 
             // Tabs row: 13pt top padding, 48pt tall tabs
@@ -151,7 +151,7 @@ private struct TabItem: View {
     // Active: Emphasis/Fill #006AFF. Inactive: Fill/10 black at 90% opacity.
     private var color: Color {
         isSelected
-            ? Color(red: 0, green: 106 / 255, blue: 1)
+            ? Color.blue3
             : Color.gray1
     }
 
@@ -200,12 +200,12 @@ private struct JewelMark: View {
     }
     .safeAreaInset(edge: .bottom, spacing: 0) {
         VStack(spacing: 0) {
-            Rectangle().fill(Color.gray4).frame(height: 1)
+            Rectangle().fill(Color.gray5).frame(height: 1)
             HStack(spacing: 0) {
                 ForEach(["Home", "Transfer", "Analytics", "More"], id: \.self) { label in
                     Text(label)
                         .font(.caption)
-                        .foregroundStyle(label == "Home" ? Color.blue2 : Color.gray1)
+                        .foregroundStyle(label == "Home" ? Color.blue3 : Color.gray1)
                         .frame(maxWidth: .infinity)
                         .padding(.top, 13)
                         .padding(.bottom, 8)

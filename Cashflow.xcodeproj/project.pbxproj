@@ -62,7 +62,7 @@
 		7C32B5807B99DFCDF3FF51C9 /* SecondaryNavBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecondaryNavBar.swift; sourceTree = "<group>"; };
 		84FEEC42D87BFE813F5FB01C /* SquareSansText-Bold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-Bold.otf"; sourceTree = "<group>"; };
 		8A39108E1676068273E8FCF0 /* SquareSansText-Medium.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-Medium.otf"; sourceTree = "<group>"; };
-		8C365268127520CD1EBE7721 /* CashflowTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CashflowTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		8C365268127520CD1EBE7721 /* CashflowTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CashflowTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		933AF8424DF7EA051A440FB1 /* SquareSansDisplay-Regular.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansDisplay-Regular.otf"; sourceTree = "<group>"; };
 		A4785E30E6141298A7CD9494 /* SquareSansDisplay-MediumCondensed.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansDisplay-MediumCondensed.otf"; sourceTree = "<group>"; };
 		AACDB4A56F87F55B57342118 /* SquareSansText-MediumItalic.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-MediumItalic.otf"; sourceTree = "<group>"; };
@@ -234,9 +234,10 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1430;
+				LastUpgradeCheck = 2630;
 				TargetAttributes = {
 					DE28C2C2443C047CEE312DFE = {
+						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -363,6 +364,7 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -383,6 +385,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -426,6 +429,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -439,6 +443,7 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
@@ -485,7 +490,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 2EXWMSS3AZ;
+				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = Sources/App/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Cashflow;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -505,7 +510,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 2EXWMSS3AZ;
+				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = Sources/App/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Cashflow;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

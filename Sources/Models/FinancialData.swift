@@ -305,14 +305,21 @@ enum AppFinancials {
     // MARK: - Multi-year / multi-period accessors
 
     /// Monthly financials for a given year (2023 or 2024).
+    /// Returns empty array for years outside the data range (e.g. 2022).
     static func monthlyData(year: Int) -> [MonthlyFinancial] {
-        year == 2023 ? monthly2023 : monthly
+        switch year {
+        case 2023: return monthly2023
+        case 2024: return monthly
+        default:   return []
+        }
     }
 
     /// 13-week quarterly data for any supported year + quarter.
     /// Q4 2024 delegates to the hand-crafted `quarterlyWeeks` array;
     /// all other periods are computed proportionally from monthly data.
+    /// Returns empty array for years outside the data range.
     static func weeklyData(year: Int, quarter: Int) -> [WeeklyFinancial] {
+        guard year >= minYear else { return [] }
         if year == 2024 && quarter == 4 { return quarterlyWeeks }
         return buildWeeklyData(year: year, quarter: quarter)
     }
@@ -320,7 +327,9 @@ enum AppFinancials {
     /// Daily data for any supported year + month.
     /// December 2024 delegates to the hand-crafted `decemberDaily` array;
     /// all other months are computed proportionally from monthly data.
+    /// Returns empty array for years outside the data range.
     static func dailyData(year: Int, month: Int) -> [DailyFinancial] {
+        guard year >= minYear else { return [] }
         if year == 2024 && month == 12 { return decemberDaily }
         return buildDailyData(year: year, month: month)
     }

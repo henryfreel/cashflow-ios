@@ -9,7 +9,7 @@ import SwiftUI
 //   • Light revenue bar  — grows UP from zero (top-rounded corners)
 //   • Light expense bar  — grows DOWN from zero (bottom-rounded corners)
 //   • Dark net-profit overlay — sits at the zero end of the relevant bar
-// Active bar uses green/red colors; inactive bars use gray5/gray4.
+// Active bar uses green/red colors; inactive bars use gray7/gray5.
 // Net-profit line indicator (2pt) only rendered for the active bar.
 // Works for all three period modes: Year (12 months), Quarter (13 weeks),
 // Month (N days).
@@ -99,7 +99,20 @@ struct PLYearBarChart: View {
 
             monthLabels
         }
-        // Tooltip floats above the bar area (negative-y overlay, no clipping).
+        .background(alignment: .top) {
+            // Vertical line behind chart: y=0 to y=168 (8pt into the 16pt gap, splitting the difference).
+            // Renders under bars; only tip and bottom visible.
+            if let si = scrubbingIndex, chartTotalWidth > 0 {
+                let cx = barCenterX(for: si)
+                let lineH = barAreaH + 8
+                Rectangle()
+                    .fill(Color.gray1)
+                    .frame(width: 1, height: lineH)
+                    .position(x: cx, y: lineH / 2)
+            }
+        }
+        // Tooltip overlay; tip segment (-16 to 0) drawn here (above chart, no bars)
+        // so only the tip (above bars) and bottom (below bars) are visible.
         .overlay(alignment: .top) {
             if let si = scrubbingIndex, chartTotalWidth > 0 {
                 let cx = barCenterX(for: si)
@@ -112,6 +125,15 @@ struct PLYearBarChart: View {
                     let clampedX = max(halfW - viewportHPadding + edgeMargin,
                                        min(geo.size.width + viewportHPadding - halfW - edgeMargin, cx))
 
+                    // Tooltip center 16pt above chart top (8pt higher than before).
+                    let tooltipCenterY = -(tooltipHeight / 2 + 16)
+
+                    // Tip segment: tooltip bottom (-16) to chart top (0). Above bars, no overlap.
+                    Rectangle()
+                        .fill(Color.gray1)
+                        .frame(width: 1, height: 16)
+                        .position(x: cx, y: -8)
+
                     PLBarTooltip(
                         label: si < entries.count ? entries[si].fullLabel : ""
                     )
@@ -120,7 +142,7 @@ struct PLYearBarChart: View {
                         tooltipHeight = size.height
                         tooltipWidth  = size.width
                     }
-                    .position(x: clampedX, y: -(tooltipHeight / 2 + 8))
+                    .position(x: clampedX, y: tooltipCenterY)
                 }
                 .allowsHitTesting(false)
             }
@@ -143,18 +165,6 @@ struct PLYearBarChart: View {
         ZStack(alignment: .topLeading) {
             gridlines(barZoneW: barZoneW + axisToBarGap)
             yAxisView
-
-            // Thin vertical reference line behind the hovered bar
-            if let si = scrubbingIndex {
-                let n    = entries.count
-                let barW = max(0, (barZoneW - adaptiveGap * CGFloat(n - 1)) / CGFloat(n))
-                let cx   = yAxisW + axisToBarGap + CGFloat(si) * (barW + adaptiveGap) + barW / 2
-
-                Rectangle()
-                    .fill(Color.gray1)
-                    .frame(width: 1, height: barAreaH)
-                    .position(x: cx, y: barAreaH / 2)
-            }
 
             HStack(spacing: adaptiveGap) {
                 ForEach(entries.indices, id: \.self) { i in
@@ -212,7 +222,7 @@ struct PLYearBarChart: View {
             ForEach(yAxisEntries) { entry in
                 Text(entry.label)
                     .font(.custom(AppFont.Text.regular, size: 10))
-                    .foregroundStyle(Color.gray3)
+                    .foregroundStyle(Color.gray4)
                     .frame(width: yAxisW - 4, alignment: .trailing)
                     .offset(y: entry.y - 5)
             }
@@ -260,7 +270,7 @@ struct PLYearBarChart: View {
                         let cx = yAxisW + axisToBarGap + CGFloat(i) * (barW + g) + barW / 2
                         Text(entries[i].label)
                             .font(.custom(AppFont.Text.regular, size: 10))
-                            .foregroundStyle(isActiveScrub ? Color.gray1 : Color.gray3)
+                            .foregroundStyle(isActiveScrub ? Color.gray1 : Color.gray4)
                             .fixedSize()
                             .position(x: cx, y: 5)
                     }
@@ -287,11 +297,11 @@ struct PLYearBarChart: View {
         // While scrubbing, non-active bars switch to neutral grays.
         // Active (hovered) bar keeps its full green/red palette.
         let dimmed = isScrubbing && !isActiveScrub
-        let revLight: Color = dimmed ? .gray5  : .green5
-        let revDark:  Color = dimmed ? .gray4  : .green1
-        let expLight: Color = dimmed ? .gray5  : .red6
-        let expDark:  Color = dimmed ? .gray4  : .red1
-        let lineColor: Color = dimmed ? .gray4 : .gray1
+        let revLight: Color = dimmed ? .gray7  : .green7
+        let revDark:  Color = dimmed ? .gray5  : .green3
+        let expLight: Color = dimmed ? .gray7  : .red7
+        let expDark:  Color = dimmed ? .gray5  : .red2
+        let lineColor: Color = dimmed ? .gray5 : .gray1
 
         let lineY: CGFloat = isPos
             ? zeroY - min(netH, revH)

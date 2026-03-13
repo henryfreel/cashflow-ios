@@ -60,7 +60,7 @@ struct HomeView: View {
                 }
             }
         }
-        .background(Color.gray5.ignoresSafeArea())
+        .background(Color.gray7.ignoresSafeArea())
         .safeAreaInset(edge: .top, spacing: 0) {
             TopNavigationBar(showBalance: showBalance, isScrolled: isScrolled)
         }
@@ -76,7 +76,7 @@ struct HomeView: View {
 private struct GreetingSection: View {
     var body: some View {
         VStack(spacing: 0) {
-            Text("You have \(Text(AppFinancials.netBalanceFormatted).foregroundStyle(Color.blue2)) across all your accounts")
+            Text("You have \(Text(AppFinancials.netBalanceFormatted).foregroundStyle(Color.blue3)) across all your accounts")
                 .foregroundStyle(Color.gray1)
                 .font(.heading30)
             .lineSpacing(4)
@@ -133,7 +133,7 @@ private struct LauncherRow: View {
                 if let sub = subtitle {
                     Text(sub)
                         .font(.paragraph20)
-                        .foregroundStyle(Color.gray2)
+                        .foregroundStyle(Color.gray3)
                 }
             }
 
@@ -148,7 +148,7 @@ private struct LauncherRow: View {
                 if let sub = amountSubtitle, !sub.isEmpty {
                     Text(sub)
                         .font(.paragraph20)
-                        .foregroundStyle(Color.gray2)
+                        .foregroundStyle(Color.gray3)
                 }
             }
         }
@@ -161,7 +161,7 @@ private struct LauncherRow: View {
 private struct ProfitLossCard: View {
     @Binding var showDetail: Bool
 
-    @State private var selectedPeriod = "1Y"
+    @State private var selectedPeriod = "1M"
     @State private var activeBarIndex: Int? = nil
     @State private var chartWidth: CGFloat = 0
     @State private var chartTopInCard: CGFloat = 0  // measured; drives tooltip Y
@@ -189,13 +189,16 @@ private struct ProfitLossCard: View {
         "July","August","September","October","November","December"
     ]
 
+    // Can go back one full period before minYear (no-data placeholder period).
     private var canGoBack: Bool {
         switch selectedPeriod {
-        case "1M": return !(selectedYear == AppFinancials.minYear && selectedMonth == 1)
-        case "1Q": return !(selectedYear == AppFinancials.minYear && selectedQuarter == 1)
-        default:   return selectedYear > AppFinancials.minYear
+        case "1M": return !(selectedYear == AppFinancials.minYear - 1 && selectedMonth == 12)
+        case "1Q": return !(selectedYear == AppFinancials.minYear - 1 && selectedQuarter == 4)
+        default:   return selectedYear > AppFinancials.minYear - 1
         }
     }
+
+    private var hasDataForPeriod: Bool { selectedYear >= AppFinancials.minYear }
 
     private var canGoForward: Bool {
         switch selectedPeriod {
@@ -272,18 +275,20 @@ private struct ProfitLossCard: View {
 
     private var pageCount: Int {
         let years = AppFinancials.currentYear - AppFinancials.minYear + 1
+        // +1 accounts for the single no-data placeholder period before minYear
         switch selectedPeriod {
-        case "1M": return years * 12
-        case "1Q": return years * 4
-        default:   return years
+        case "1M": return years * 12 + 1
+        case "1Q": return years * 4 + 1
+        default:   return years + 1
         }
     }
 
     private var currentPage: Int {
+        // Page 0 is the no-data period (Dec/Q4/year before minYear); data pages start at 1.
         switch selectedPeriod {
-        case "1M": return (selectedYear - AppFinancials.minYear) * 12 + (selectedMonth   - 1)
-        case "1Q": return (selectedYear - AppFinancials.minYear) * 4  + (selectedQuarter - 1)
-        default:   return  selectedYear - AppFinancials.minYear
+        case "1M": return (selectedYear - AppFinancials.minYear) * 12 + (selectedMonth   - 1) + 1
+        case "1Q": return (selectedYear - AppFinancials.minYear) * 4  + (selectedQuarter - 1) + 1
+        default:   return  selectedYear - AppFinancials.minYear + 1
         }
     }
 
@@ -512,11 +517,11 @@ private struct ProfitLossCard: View {
     }
 
     private func pillForeground(_ period: String) -> Color {
-        period == selectedPeriod ? Color.gray2 : Color.gray3
+        period == selectedPeriod ? Color.gray3 : Color.gray4
     }
 
     private func pillBackground(_ period: String) -> Color {
-        period == selectedPeriod ? Color.gray4 : Color.clear
+        period == selectedPeriod ? Color.gray6 : Color.clear
     }
 
     private var periodPicker: some View {
@@ -565,30 +570,27 @@ private struct ProfitLossCard: View {
                     Text(formattedValue(displayedProfit))
                         .font(.display10)
                         .foregroundStyle(Color.gray1)
+                        .contentTransition(.numericText(value: displayedProfit))
+                        .monospacedDigit()
 
                     Text(periodSubtitle)
                         .font(.paragraph20)
-                        .foregroundStyle(Color.gray2)
+                        .foregroundStyle(Color.gray3)
                 }
                 .padding(.top, 8)
-                .padding(.bottom, 56)
+                // No-data chart area is 24pt taller (well spacing); compensate here to keep card height fixed.
+                .padding(.bottom, hasDataForPeriod ? 56 : 32)
 
-                // Each chart area's bars HStack carries the transition + bounce offset;
-                // the labels row inside each area and the dots below stay fixed.
-                switch selectedPeriod {
-                case "1M": dailyChartArea
-                case "1Q": quarterlyChartArea
-                default:   chartArea
-                }
+                currentChartArea
 
                 // Paging dots — anchored, never moves.
                 ChartPageControl(numberOfPages: pageCount, currentPage: currentPage)
                     .frame(maxWidth: .infinity, minHeight: 20, maxHeight: 20)
-                    .padding(.top, 8)
+                    .padding(.top, 12)
             }
             .padding(.horizontal, 24)
             .padding(.top, 24)
-            .padding(.bottom, 12)
+            .padding(.bottom, 16)
             // Tap anywhere on the card (except period pills, which handle their own taps)
             // navigates to the detail page. Guard prevents accidental navigation mid-scrub.
             .contentShape(Rectangle())
@@ -700,7 +702,7 @@ private struct ProfitLossCard: View {
             .frame(height: 120)
             .contentShape(Rectangle())
             .overlay(alignment: .top) {
-                Color.gray4
+                Color.gray5
                     .frame(height: 1)
                     .offset(y: 60)
             }
@@ -729,7 +731,7 @@ private struct ProfitLossCard: View {
                               : .custom(AppFont.Text.regular,  size: 10))
                         .foregroundStyle(activeBarIndex == bar.id
                             ? Color.gray1
-                            : Color.gray3)
+                            : Color.gray4)
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -758,7 +760,7 @@ private struct ProfitLossCard: View {
             .frame(height: 120)
             .contentShape(Rectangle())
             .overlay(alignment: .top) {
-                Color.gray4
+                Color.gray5
                     .frame(height: 1)
                     .offset(y: 60)
             }
@@ -797,7 +799,7 @@ private struct ProfitLossCard: View {
                                           : .custom(AppFont.Text.regular,  size: 10))
                                     .foregroundStyle(isActive
                                         ? Color.gray1
-                                        : Color.gray3)
+                                        : Color.gray4)
                                     .frame(width: slotW * 2)
                             }
                         }
@@ -826,7 +828,7 @@ private struct ProfitLossCard: View {
             .frame(height: 120)
             .contentShape(Rectangle())
             .overlay(alignment: .top) {
-                Color.gray4
+                Color.gray5
                     .frame(height: 1)
                     .offset(y: 60)
             }
@@ -852,7 +854,7 @@ private struct ProfitLossCard: View {
                               : .custom(AppFont.Text.regular,  size: 10))
                         .foregroundStyle(activeBarIndex == bar.id
                             ? Color.gray1
-                            : Color.gray3)
+                            : Color.gray4)
                         .frame(maxWidth: .infinity)
                         .minimumScaleFactor(0.5)
                 }
@@ -860,6 +862,64 @@ private struct ProfitLossCard: View {
             .frame(height: 14)
         }
         .clipped()
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { chartWidth = $0 }
+        .onGeometryChange(for: CGFloat.self) {
+            $0.frame(in: .named("profitCard")).minY
+        } action: { chartTopInCard = $0 }
+    }
+
+    // MARK: Chart area selection
+
+    /// Routes to the correct chart area or the no-data well based on current state.
+    /// Extracted into its own @ViewBuilder property to prevent Swift type-checker issues
+    /// that arise from nesting a `switch` inside an `if/else` in a VStack body.
+    @ViewBuilder
+    private var currentChartArea: some View {
+        if hasDataForPeriod {
+            switch selectedPeriod {
+            case "1M": dailyChartArea
+            case "1Q": quarterlyChartArea
+            default:   chartArea
+            }
+        } else {
+            noDataChartArea
+        }
+    }
+
+    // MARK: No-data chart area
+
+    private static let noDataMonthInitials = ["J","F","M","A","M","J","J","A","S","O","N","D"]
+
+    /// Figma no-data state: gray well (120pt, 8pt radius) + 32pt gap + month-initial labels.
+    /// Total height matches the regular chart area so the card height stays fixed.
+    private var noDataChartArea: some View {
+        return VStack(spacing: 32) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.gray7)
+                VStack(spacing: 0) {
+                    Text("No data available")
+                        .font(.paragraphSemibold20)
+                        .foregroundStyle(Color.gray1)
+                    Text("Try adjusting the date range")
+                        .font(.paragraph20)
+                        .foregroundStyle(Color.gray3)
+                }
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+            }
+            .frame(height: 120)
+
+            HStack(spacing: 0) {
+                ForEach(0..<12, id: \.self) { i in
+                    Text(Self.noDataMonthInitials[i])
+                        .font(.custom(AppFont.Text.regular, size: 10))
+                        .foregroundStyle(Color.gray4)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .frame(height: 14)
+        }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { chartWidth = $0 }
         .onGeometryChange(for: CGFloat.self) {
             $0.frame(in: .named("profitCard")).minY
@@ -877,9 +937,9 @@ private struct ProfitLossCard: View {
             guard bar.hasData else { return .clear }
             let dimmed = isScrubbing && !isActive
             if bar.height < 0 {
-                return dimmed ? Color.red5 : Color.red2
+                return dimmed ? Color.red6 : Color.red3
             } else {
-                return dimmed ? Color.green5 : Color.green1
+                return dimmed ? Color.green7 : Color.green3
             }
         }
 
@@ -927,9 +987,9 @@ private struct ProfitLossCard: View {
         private var fillColor: Color {
             let dimmed = isScrubbing && !isActive
             if bar.height < 0 {
-                return dimmed ? Color.red5 : Color.red2
+                return dimmed ? Color.red6 : Color.red3
             } else {
-                return dimmed ? Color.green5 : Color.green1
+                return dimmed ? Color.green7 : Color.green3
             }
         }
 
@@ -976,9 +1036,9 @@ private struct ProfitLossCard: View {
             guard bar.hasData else { return .clear }
             let dimmed = isScrubbing && !isActive
             if bar.height < 0 {
-                return dimmed ? Color.red5 : Color.red2
+                return dimmed ? Color.red6 : Color.red3
             } else {
-                return dimmed ? Color.green5 : Color.green1
+                return dimmed ? Color.green7 : Color.green3
             }
         }
 
@@ -1222,10 +1282,10 @@ private struct BadgePill: View {
     var body: some View {
         Text(label)
             .font(.paragraphSemibold10)
-            .foregroundStyle(Color(red: 0, green: 106/255, blue: 1))
+            .foregroundStyle(Color.blue3)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(Color(red: 229/255, green: 240/255, blue: 255/255))
+            .background(Color.blue7)
             .clipShape(Capsule())
     }
 }
@@ -1244,7 +1304,7 @@ private struct BalanceSummaryRow: View {
                     .foregroundStyle(Color.gray1)
                 Text(maskedNumber)
                     .font(.paragraph20)
-                    .foregroundStyle(Color.gray2)
+                    .foregroundStyle(Color.gray3)
                     .tracking(1.4)
             }
             Spacer()
@@ -1281,7 +1341,7 @@ private struct KeyValueRow: View {
 private struct CardDivider: View {
     var body: some View {
         Rectangle()
-            .fill(Color.gray4)
+            .fill(Color.gray5)
             .frame(height: 1)
             .padding(.vertical, 8)
     }
@@ -1390,7 +1450,7 @@ private struct LoansCard: View {
                             .foregroundStyle(Color.gray1)
                         Text("\(Text("$150,000").font(.custom(AppFont.Text.medium, size: 14))) available")
                             .font(.paragraph20)
-                            .foregroundStyle(Color.blue2)
+                            .foregroundStyle(Color.blue3)
                     }
                     Spacer()
                     Button("View offer") {}
@@ -1398,7 +1458,7 @@ private struct LoansCard: View {
                         .foregroundStyle(.white)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
-                        .background(Color(red: 0, green: 106/255, blue: 1))
+                        .background(Color.blue3)
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 .padding(.vertical, 12)

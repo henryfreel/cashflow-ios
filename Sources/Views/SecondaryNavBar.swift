@@ -3,8 +3,8 @@ import SwiftUI
 // MARK: - Secondary Nav Bar
 
 /// Figma "⭐️ Secondary nav" (2336:33900).
-/// Left: NavBack in gray5 Capsule pill (12pt inset). Center: bold title + optional
-/// blue subtitle row. Right: NavDownload in gray5 Capsule pill (12pt inset).
+/// Left: NavBack in gray7 Capsule pill (12pt inset). Center: bold title + optional
+/// blue subtitle row. Right: NavDownload in gray7 Capsule pill (12pt inset).
 /// Both pills total 48×48pt (24pt icon + 12pt padding each side).
 struct SecondaryNavBar: View {
     let title: String
@@ -28,7 +28,7 @@ struct SecondaryNavBar: View {
             }
             .buttonStyle(.plain)
             .padding(12)
-            .background(Color.gray5, in: Capsule())
+            .background(Color.gray7, in: Capsule())
 
             Spacer()
 
@@ -43,7 +43,7 @@ struct SecondaryNavBar: View {
             }
             .buttonStyle(.plain)
             .padding(12)
-            .background(Color.gray5, in: Capsule())
+            .background(Color.gray7, in: Capsule())
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 16)
@@ -60,14 +60,14 @@ struct SecondaryNavBar: View {
                     HStack(spacing: 2) {
                         Text(sub)
                             .font(.paragraphSemibold20)
-                            .foregroundStyle(Color.blue2)
+                            .foregroundStyle(Color.blue3)
                             .frame(height: 22, alignment: .center)
                         Image("AllLocationsChevron")
                             .resizable()
                             .renderingMode(.template)
                             .scaledToFit()
                             .frame(width: 16, height: 16)
-                            .foregroundStyle(Color.blue2)
+                            .foregroundStyle(Color.blue3)
                     }
                 }
             }
@@ -76,7 +76,7 @@ struct SecondaryNavBar: View {
         .overlay(alignment: .bottom) {
             if isScrolled {
                 Rectangle()
-                    .fill(Color.gray4)
+                    .fill(Color.gray5)
                     .frame(height: 1)
                     .transition(.opacity)
             }
