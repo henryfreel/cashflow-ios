@@ -13,16 +13,34 @@ import SwiftUI
 // Net-profit line indicator (2pt) only rendered for the active bar.
 // Works for all three period modes: Year (12 months), Quarter (13 weeks),
 // Month (N days).
+//
+// Scrubbing: set scrubbingIndex + supply onScrubChanged/onScrubEnded callbacks.
+// While scrubbing all non-active bars dim to 35% opacity; a thin vertical
+// reference line appears behind the active bar; a tooltip floats above it.
 
 struct PLYearBarChart: View {
     let entries: [BarChartEntry]
     let activeIndex: Int
+
+    // Scrub state — supplied by parent; chart fires callbacks when gesture fires.
+    var scrubbingIndex: Int? = nil
+    var onScrubChanged: (Int) -> Void = { _ in }
+    var onScrubEnded: () -> Void = {}
+
+    /// Horizontal padding the parent applies on each side of this chart.
+    /// The tooltip overlay expands into this region so it can reach the screen edge.
+    var viewportHPadding: CGFloat = 0
 
     private let barAreaH:     CGFloat = 160
     private let zeroY:        CGFloat = 80
     private let yAxisW:       CGFloat = 32
     private let barGap:       CGFloat = 8
     private let axisToBarGap: CGFloat = 8
+
+    // Measured in onGeometryChange; drives barIndex(at:) and tooltip positioning.
+    @State private var chartTotalWidth: CGFloat = 0
+    @State private var tooltipHeight: CGFloat = 32
+    @State private var tooltipWidth: CGFloat = 60
 
     private var scale: Double {
         max(entries.map(\.revenue).max() ?? 1,
@@ -36,14 +54,76 @@ struct PLYearBarChart: View {
         return "\(Int(k.rounded()))k"
     }
 
+    // MARK: Bar index / center helpers
+
+    private func barIndex(at x: CGFloat) -> Int {
+        guard chartTotalWidth > 0 else { return 0 }
+        let barZoneW = chartTotalWidth - yAxisW - axisToBarGap
+        let g = gap(for: barZoneW)
+        let n = entries.count
+        let barW = max(0, (barZoneW - g * CGFloat(n - 1)) / CGFloat(n))
+        let adjustedX = x - yAxisW - axisToBarGap
+        return max(0, min(n - 1, Int(adjustedX / (barW + g))))
+    }
+
+    private func barCenterX(for index: Int) -> CGFloat {
+        guard chartTotalWidth > 0 else { return 0 }
+        let barZoneW = chartTotalWidth - yAxisW - axisToBarGap
+        let g = gap(for: barZoneW)
+        let n = entries.count
+        let barW = max(0, (barZoneW - g * CGFloat(n - 1)) / CGFloat(n))
+        return yAxisW + axisToBarGap + CGFloat(index) * (barW + g) + barW / 2
+    }
+
+    // MARK: Body
+
     var body: some View {
         VStack(spacing: 16) {
             GeometryReader { geo in
-                chartArea(totalW: geo.size.width)
+                ZStack(alignment: .topLeading) {
+                    chartArea(totalW: geo.size.width)
+
+                    // Long-press scrub gesture overlay
+                    PLChartScrubOverlay(
+                        onScrubChanged: { x in
+                            onScrubChanged(barIndex(at: x))
+                        },
+                        onScrubEnded: onScrubEnded
+                    )
+                }
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: {
+                    chartTotalWidth = $0
+                }
             }
             .frame(height: barAreaH)
 
             monthLabels
+        }
+        // Tooltip floats above the bar area (negative-y overlay, no clipping).
+        .overlay(alignment: .top) {
+            if let si = scrubbingIndex, chartTotalWidth > 0 {
+                let cx = barCenterX(for: si)
+                GeometryReader { geo in
+                    let halfW = tooltipWidth / 2
+                    // Keep 12 pt between the tooltip edge and the screen edge.
+                    // geo.size.width is the chart width; viewportHPadding lets the tooltip
+                    // overflow into the parent's horizontal inset to reach the screen edge.
+                    let edgeMargin: CGFloat = 12
+                    let clampedX = max(halfW - viewportHPadding + edgeMargin,
+                                       min(geo.size.width + viewportHPadding - halfW - edgeMargin, cx))
+
+                    PLBarTooltip(
+                        label: si < entries.count ? entries[si].fullLabel : ""
+                    )
+                    .fixedSize()
+                    .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+                        tooltipHeight = size.height
+                        tooltipWidth  = size.width
+                    }
+                    .position(x: clampedX, y: -(tooltipHeight / 2 + 8))
+                }
+                .allowsHitTesting(false)
+            }
         }
     }
 
@@ -58,12 +138,30 @@ struct PLYearBarChart: View {
     private func chartArea(totalW: CGFloat) -> some View {
         let barZoneW    = totalW - yAxisW - axisToBarGap
         let adaptiveGap = gap(for: barZoneW)
+        let isScrubbing = scrubbingIndex != nil
+
         ZStack(alignment: .topLeading) {
             gridlines(barZoneW: barZoneW + axisToBarGap)
             yAxisView
+
+            // Thin vertical reference line behind the hovered bar
+            if let si = scrubbingIndex {
+                let n    = entries.count
+                let barW = max(0, (barZoneW - adaptiveGap * CGFloat(n - 1)) / CGFloat(n))
+                let cx   = yAxisW + axisToBarGap + CGFloat(si) * (barW + adaptiveGap) + barW / 2
+
+                Rectangle()
+                    .fill(Color.gray1)
+                    .frame(width: 1, height: barAreaH)
+                    .position(x: cx, y: barAreaH / 2)
+            }
+
             HStack(spacing: adaptiveGap) {
                 ForEach(entries.indices, id: \.self) { i in
-                    barColumn(entries[i], isActive: i == activeIndex)
+                    barColumn(entries[i],
+                              isActive: i == activeIndex,
+                              isScrubbing: isScrubbing,
+                              isActiveScrub: i == scrubbingIndex)
                 }
             }
             .frame(width: barZoneW)
@@ -155,11 +253,14 @@ struct PLYearBarChart: View {
             let barW     = max(0, (barZoneW - g * CGFloat(n - 1)) / CGFloat(n))
             ZStack(alignment: .topLeading) {
                 ForEach(entries.indices, id: \.self) { i in
-                    if visible.contains(i) {
+                    let isActiveScrub = i == scrubbingIndex
+                    // Always show the scrubbing-active label, even if normally hidden
+                    let isVisible = visible.contains(i) || isActiveScrub
+                    if isVisible {
                         let cx = yAxisW + axisToBarGap + CGFloat(i) * (barW + g) + barW / 2
                         Text(entries[i].label)
                             .font(.custom(AppFont.Text.regular, size: 10))
-                            .foregroundStyle(Color.gray3)
+                            .foregroundStyle(isActiveScrub ? Color.gray1 : Color.gray3)
                             .fixedSize()
                             .position(x: cx, y: 5)
                     }
@@ -172,7 +273,10 @@ struct PLYearBarChart: View {
     // MARK: Bar column
 
     @ViewBuilder
-    private func barColumn(_ m: BarChartEntry, isActive: Bool) -> some View {
+    private func barColumn(_ m: BarChartEntry,
+                            isActive: Bool,
+                            isScrubbing: Bool,
+                            isActiveScrub: Bool) -> some View {
         let s      = scale
         let revH   = CGFloat(m.revenue  / s) * zeroY
         let expH   = CGFloat(m.expenses / s) * zeroY
@@ -180,18 +284,24 @@ struct PLYearBarChart: View {
         let netH   = CGFloat(abs(net) / s) * zeroY
         let isPos  = net >= 0
 
-        // Light fill for the base portion; darker shade marks the net-profit segment.
-        // Current (partial) period bars use diagonal hatching instead of a solid fill.
-        // Net-profit line appears on every bar that has data.
+        // While scrubbing, non-active bars switch to neutral grays.
+        // Active (hovered) bar keeps its full green/red palette.
+        let dimmed = isScrubbing && !isActiveScrub
+        let revLight: Color = dimmed ? .gray5  : .green5
+        let revDark:  Color = dimmed ? .gray4  : .green1
+        let expLight: Color = dimmed ? .gray5  : .red6
+        let expDark:  Color = dimmed ? .gray4  : .red1
+        let lineColor: Color = dimmed ? .gray4 : .gray1
+
         let lineY: CGFloat = isPos
             ? zeroY - min(netH, revH)
             : zeroY + min(netH, expH)
 
         ZStack(alignment: .topLeading) {
             revenueBar(revH: revH, netH: netH, isPos: isPos,
-                       light: .green5, dark: .green1, isCurrent: m.isCurrent)
+                       light: revLight, dark: revDark, isCurrent: m.isCurrent)
             expenseBar(expH: expH, netH: netH, isPos: isPos,
-                       light: .red6,   dark: .red1,   isCurrent: m.isCurrent)
+                       light: expLight, dark: expDark, isCurrent: m.isCurrent)
                 .offset(y: zeroY)
         }
         .frame(height: barAreaH, alignment: .top)
@@ -202,7 +312,7 @@ struct PLYearBarChart: View {
         .overlay(alignment: .top) {
             if m.hasData && netH > 0 {
                 Capsule()
-                    .fill(Color.gray1)
+                    .fill(lineColor)
                     .frame(height: 2)
                     .padding(.horizontal, -2)
                     .offset(y: lineY - 1)
@@ -271,6 +381,88 @@ struct PLYearBarChart: View {
                 DiagonalHatch(color: color).frame(height: height)
             } else {
                 Rectangle().fill(color).frame(height: height)
+            }
+        }
+    }
+}
+
+// MARK: - Bar tooltip
+
+private struct PLBarTooltip: View {
+    let label: String
+
+    var body: some View {
+        Text(label)
+            .foregroundStyle(Color(white: 1, opacity: 0.9))
+            .font(.custom(AppFont.Text.regular, size: 12))
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.gray1)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+    }
+}
+
+// MARK: - Scrub gesture overlay
+
+/// A UIKit long-press gesture recognizer wrapped for SwiftUI.
+/// Activates after 0.3 s of near-stationary touch, then tracks drag freely.
+/// `cancelsTouchesInView = false` + `shouldRecognizeSimultaneouslyWith` let
+/// the surrounding ScrollView's pan gesture continue unobstructed.
+struct PLChartScrubOverlay: UIViewRepresentable {
+    let onScrubChanged: (CGFloat) -> Void
+    let onScrubEnded:   () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onScrubChanged: onScrubChanged, onScrubEnded: onScrubEnded)
+    }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .clear
+
+        let lp = UILongPressGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleLongPress(_:))
+        )
+        lp.minimumPressDuration = 0.3
+        lp.cancelsTouchesInView = false
+        lp.delaysTouchesBegan   = false
+        lp.delegate = context.coordinator
+        view.addGestureRecognizer(lp)
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        context.coordinator.onScrubChanged = onScrubChanged
+        context.coordinator.onScrubEnded   = onScrubEnded
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var onScrubChanged: (CGFloat) -> Void
+        var onScrubEnded:   () -> Void
+
+        init(onScrubChanged: @escaping (CGFloat) -> Void,
+             onScrubEnded:   @escaping () -> Void) {
+            self.onScrubChanged = onScrubChanged
+            self.onScrubEnded   = onScrubEnded
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
+        ) -> Bool { true }
+
+        @objc func handleLongPress(_ sender: UILongPressGestureRecognizer) {
+            switch sender.state {
+            case .began:
+                onScrubChanged(sender.location(in: sender.view).x)
+                UISelectionFeedbackGenerator().selectionChanged()
+            case .changed:
+                onScrubChanged(sender.location(in: sender.view).x)
+            case .ended, .cancelled, .failed:
+                onScrubEnded()
+            default: break
             }
         }
     }

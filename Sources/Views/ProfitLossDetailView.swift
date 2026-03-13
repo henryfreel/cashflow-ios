@@ -22,6 +22,8 @@ struct ProfitLossDetailView: View {
     @State private var slideLeft: Bool = true
     // Rubber-band offset applied only to the sliding metrics rows.
     @State private var bounceOffset: CGFloat = 0
+    // Scrubbing: which bar index is currently being hovered (nil = not scrubbing).
+    @State private var scrubIndex: Int? = nil
 
     // MARK: Fixed full-year 2024 data (hero + rev/exp card are always current-year)
 
@@ -136,6 +138,59 @@ struct ProfitLossDetailView: View {
         prevNetProfit != 0 ? ((periodNetProfit - prevNetProfit) / abs(prevNetProfit)) * 100 : 0
     }
 
+    // MARK: Scrub-specific data (drive metric rows while hovering)
+
+    /// Human-readable label for the bar currently under the user's finger.
+    /// Year view → full month name ("December").
+    /// Quarter view → week date range ("Oct 1 – Oct 7").
+    /// Month view → full date with ordinal ("December 1st, 2024").
+    private var scrubLabel: String? {
+        guard let si = scrubIndex, si < currentEntries.count else { return nil }
+        let entry = currentEntries[si]
+        switch selectedPeriod {
+        case "Month":
+            // "December 12th" — no year (the period header already shows it)
+            let day = entry.id + 1   // entry.id is 0-based; day number is 1-based
+            let monthName = Self.monthNames[selectedMonth - 1]
+            return "\(monthName) \(day)\(ordinalSuffix(day))"
+        case "Quarter":
+            // Replace en dash with hyphen for compact list-row titles
+            return entry.fullLabel.replacingOccurrences(of: "–", with: "-")
+        default: // Year
+            return entry.fullLabel
+        }
+    }
+
+    private var scrubRevenue:   Double {
+        guard let si = scrubIndex, si < currentEntries.count else { return periodRevenue }
+        return currentEntries[si].revenue
+    }
+    private var scrubExpenses:  Double {
+        guard let si = scrubIndex, si < currentEntries.count else { return periodExpenses }
+        return currentEntries[si].expenses
+    }
+    private var scrubNetProfit: Double { scrubRevenue - scrubExpenses }
+
+    private var scrubPrevRevenue:   Double {
+        guard let si = scrubIndex, si < prevYearEntries.count else { return 0 }
+        return prevYearEntries[si].revenue
+    }
+    private var scrubPrevExpenses:  Double {
+        guard let si = scrubIndex, si < prevYearEntries.count else { return 0 }
+        return prevYearEntries[si].expenses
+    }
+    private var scrubPrevNetProfit: Double { scrubPrevRevenue - scrubPrevExpenses }
+
+    private var scrubRevYoyPct: Double {
+        scrubPrevRevenue   != 0 ? ((scrubRevenue   - scrubPrevRevenue)   / abs(scrubPrevRevenue))   * 100 : 0
+    }
+    private var scrubExpYoyPct: Double {
+        scrubPrevExpenses  != 0 ? ((scrubExpenses  - scrubPrevExpenses)  / abs(scrubPrevExpenses))  * 100 : 0
+    }
+    private var scrubNetYoyPct: Double {
+        scrubPrevNetProfit != 0 ? ((scrubNetProfit - scrubPrevNetProfit) / abs(scrubPrevNetProfit)) * 100 : 0
+    }
+
     // MARK: Period nav header
 
     private var periodNavTitle: String {
@@ -229,6 +284,11 @@ struct ProfitLossDetailView: View {
     private var swipeGesture: some Gesture {
         DragGesture(minimumDistance: 20)
             .onChanged { value in
+                // Do not interfere while the scrub gesture is active
+                guard scrubIndex == nil else {
+                    if bounceOffset != 0 { bounceOffset = 0 }
+                    return
+                }
                 let h = value.translation.width
                 let v = value.translation.height
                 guard abs(h) > abs(v) else {
@@ -239,6 +299,7 @@ struct ProfitLossDetailView: View {
                 bounceOffset = atBoundary ? h * 0.25 : h
             }
             .onEnded { value in
+                guard scrubIndex == nil else { return }
                 let h = value.translation.width
                 let v = value.translation.height
                 let isHorizontal = abs(h) > abs(v) * 1.5 && abs(h) > 30
@@ -272,7 +333,7 @@ struct ProfitLossDetailView: View {
                         .padding(.bottom, 48)
 
                     segmentedControl
-                        .padding(.bottom, 40)
+                        .padding(.bottom, 48)
 
                     periodNav
                         .padding(.bottom, 24)
@@ -300,12 +361,12 @@ struct ProfitLossDetailView: View {
                     .simultaneousGesture(swipeGesture)
 
                     viewAllButton
-                        .padding(.top, 32)
+                        .padding(.top, 24)
                 }
                 .padding(.horizontal, 24)
             }
         }
-        .contentMargins(.bottom, 102, for: .scrollContent)
+        .contentMargins(.bottom, 94, for: .scrollContent)
         .onScrollGeometryChange(for: Bool.self) { geo in
             geo.contentOffset.y + geo.contentInsets.top > 0
         } action: { _, scrolled in
@@ -528,28 +589,51 @@ struct ProfitLossDetailView: View {
     // MARK: Metrics Rows (slide on month change)
 
     private var metricsSection: some View {
-        let hasPrev = selectedYear > AppFinancials.minYear
+        let isScrubbing = scrubIndex != nil
+        let label = scrubLabel
         let yoySuffix = "since last year"
+
+        // When scrubbing, check if the hovered bar has prev-year comparison data.
+        let hasPrev: Bool = {
+            if let si = scrubIndex {
+                return si < prevYearEntries.count && prevYearEntries[si].hasData
+            }
+            return selectedYear > AppFinancials.minYear
+        }()
+
+        let revValue = isScrubbing ? scrubRevenue    : periodRevenue
+        let expValue = isScrubbing ? scrubExpenses   : periodExpenses
+        let netValue = isScrubbing ? scrubNetProfit  : periodNetProfit
+
+        let revYoy = isScrubbing ? scrubRevYoyPct  : periodRevYoyPct
+        let expYoy = isScrubbing ? scrubExpYoyPct  : periodExpYoyPct
+        let netYoy = isScrubbing ? scrubNetYoyPct  : periodNetYoyPct
+
+        // Titles shift from "Total x" to "{period label} x" while scrubbing
+        let revTitle = label.map { "\($0) revenue" }    ?? "Total revenue"
+        let expTitle = label.map { "\($0) expenses" }   ?? "Total expenses"
+        let netTitle = label.map { "\($0) net profit" } ?? "Total net profit"
+
         return VStack(spacing: 0) {
             metricRow(
                 indicator: .revenue,
-                title: "Total Revenue",
-                subtitle: hasPrev ? yoyLabel(periodRevYoyPct, up: true)  + " \(yoySuffix)" : "No previous data",
-                value: fmt(periodRevenue),
+                title: revTitle,
+                subtitle: hasPrev ? yoyLabel(revYoy, up: true)  + " \(yoySuffix)" : "No previous data",
+                value: fmt(revValue),
                 valueFont: .paragraphSemibold30
             )
             metricRow(
                 indicator: .expenses,
-                title: "Total Expenses",
-                subtitle: hasPrev ? yoyLabel(periodExpYoyPct, up: false) + " \(yoySuffix)" : "No previous data",
-                value: "–" + fmt(periodExpenses),
+                title: expTitle,
+                subtitle: hasPrev ? yoyLabel(expYoy, up: false) + " \(yoySuffix)" : "No previous data",
+                value: "–" + fmt(expValue),
                 valueFont: .paragraphSemibold30
             )
             metricRow(
                 indicator: .net,
-                title: "Total Net Profit",
-                subtitle: hasPrev ? yoyLabel(periodNetYoyPct, up: true)  + " \(yoySuffix)" : "No previous data",
-                value: fmt(periodNetProfit),
+                title: netTitle,
+                subtitle: hasPrev ? yoyLabel(netYoy, up: true)  + " \(yoySuffix)" : "No previous data",
+                value: fmt(netValue),
                 valueFont: .header2
             )
         }
@@ -610,7 +694,18 @@ struct ProfitLossDetailView: View {
     private var chartSection: some View {
         PLYearBarChart(
             entries: currentEntries,
-            activeIndex: currentEntries.firstIndex(where: { $0.isCurrent }) ?? -1
+            activeIndex: currentEntries.firstIndex(where: { $0.isCurrent }) ?? -1,
+            scrubbingIndex: scrubIndex,
+            onScrubChanged: { idx in
+                if scrubIndex != idx {
+                    scrubIndex = idx
+                    UISelectionFeedbackGenerator().selectionChanged()
+                }
+            },
+            onScrubEnded: {
+                withAnimation(.easeOut(duration: 0.2)) { scrubIndex = nil }
+            },
+            viewportHPadding: 24
         )
     }
 
@@ -618,7 +713,7 @@ struct ProfitLossDetailView: View {
 
     private var viewAllButton: some View {
         Button(action: {}) {
-            Text("View all \(viewAllRangeLabel) transactions")
+            Text("View \(viewAllRangeLabel) transactions")
                 .font(.paragraphSemibold30)
                 .foregroundStyle(Color.blue2)
                 .frame(maxWidth: .infinity, minHeight: 48, alignment: .center)
@@ -628,6 +723,17 @@ struct ProfitLossDetailView: View {
     }
 
     // MARK: Helpers
+
+    private func ordinalSuffix(_ n: Int) -> String {
+        let mod100 = n % 100
+        if (11...13).contains(mod100) { return "th" }
+        switch n % 10 {
+        case 1: return "st"
+        case 2: return "nd"
+        case 3: return "rd"
+        default: return "th"
+        }
+    }
 
     private func fmt(_ value: Double) -> String {
         let f = NumberFormatter()
