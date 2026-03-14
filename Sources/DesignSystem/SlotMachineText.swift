@@ -72,11 +72,12 @@ struct SlotMachineText: View {
                     // farther (positive), matching Figma's "Letter spacing" field.
                     // Applied after clip so glyph shapes are never distorted.
                     .padding(.trailing, letterSpacing)
-                    // When animating: delay inherited animation per digit for cascade.
-                    // When not animating: kill any inherited animation so parent
-                    // slide transitions (swipe pagination) cannot bleed into digit slots.
+                    // When running the slot machine, delay the inherited animation per
+                    // digit to produce the right-to-left cascade. When not animating,
+                    // leave the transaction untouched so the parent container's slide
+                    // animation (swipe pagination) can flow through unimpeded.
                     .transaction { t in
-                        t.animation = canAnimate ? t.animation?.delay(stagger) : nil
+                        if canAnimate { t.animation = t.animation?.delay(stagger) }
                     }
                 } else {
                     Text(String(ch))
@@ -86,14 +87,6 @@ struct SlotMachineText: View {
                         .padding(.trailing, letterSpacing)
                 }
             }
-        }
-        // When not in slot-machine mode, kill any inherited animation on the HStack
-        // so the ForEach cannot reflow digits horizontally during swipe pagination.
-        // This sits below the HStack itself (not inside it) so it only affects the
-        // HStack's own layout animations — the parent container's slide transition
-        // is set above this level and is unaffected.
-        .transaction { t in
-            if !animated { t.animation = nil }
         }
         // Measure the rendered line height by reading the HStack's height once.
         // The HStack is single-line text, so its height equals one digit's line height.
