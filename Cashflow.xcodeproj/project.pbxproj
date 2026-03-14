@@ -16,6 +16,7 @@
 		5BEEDC2B0D5A607F13AD3B85 /* PLYearBarChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1533699A778E5E97919D8B9 /* PLYearBarChart.swift */; };
 		5CE421A79BE5C10C1171F84A /* SquareSansText-SemiBold.otf in Resources */ = {isa = PBXBuildFile; fileRef = 646902238A230AEF1D0670DC /* SquareSansText-SemiBold.otf */; };
 		5F0CB668A4806313EAF902FE /* SquareSansDisplay-MediumExpanded.otf in Resources */ = {isa = PBXBuildFile; fileRef = DDE36791416AE91812AE1A91 /* SquareSansDisplay-MediumExpanded.otf */; };
+		5F279B0EE1236DC026EC91C4 /* SlotMachineText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C480991E4DC78221B71199D /* SlotMachineText.swift */; };
 		7B6EF6281F09F08FEFD33996 /* SquareSansDisplay-BoldCondensed.otf in Resources */ = {isa = PBXBuildFile; fileRef = F7355B151DE363A0DD494076 /* SquareSansDisplay-BoldCondensed.otf */; };
 		7CD6830C6B9A897417321512 /* ProfitLossDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2788F2A9454E91310E17B663 /* ProfitLossDetailView.swift */; };
 		8506BBD5F64C3343128A4BB6 /* SquareSansText-Medium.otf in Resources */ = {isa = PBXBuildFile; fileRef = 8A39108E1676068273E8FCF0 /* SquareSansText-Medium.otf */; };
@@ -50,19 +51,20 @@
 
 /* Begin PBXFileReference section */
 		041DCC7D5CD749C7902A6E9B /* SquareSansText-Italic.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-Italic.otf"; sourceTree = "<group>"; };
+		0C480991E4DC78221B71199D /* SlotMachineText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SlotMachineText.swift; sourceTree = "<group>"; };
 		1413207BF0D392D94D54B356 /* CashflowApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CashflowApp.swift; sourceTree = "<group>"; };
 		2788F2A9454E91310E17B663 /* ProfitLossDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfitLossDetailView.swift; sourceTree = "<group>"; };
 		31272160B79FC51BCBBCC4BB /* SquareSansDisplay-RegularCondensed.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansDisplay-RegularCondensed.otf"; sourceTree = "<group>"; };
 		420847885186BE125C7DE757 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5A5A8200AFB4DD3FA0BA42B4 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		5F2D32A0DAD842D2F22D7D3D /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
-		6451CE345E21878B3BF62B76 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
+		6451CE345E21878B3BF62B76 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		646902238A230AEF1D0670DC /* SquareSansText-SemiBold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-SemiBold.otf"; sourceTree = "<group>"; };
 		713C43D08447454AAB989F7C /* SquareSansText-BoldItalic.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-BoldItalic.otf"; sourceTree = "<group>"; };
 		7C32B5807B99DFCDF3FF51C9 /* SecondaryNavBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecondaryNavBar.swift; sourceTree = "<group>"; };
 		84FEEC42D87BFE813F5FB01C /* SquareSansText-Bold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-Bold.otf"; sourceTree = "<group>"; };
 		8A39108E1676068273E8FCF0 /* SquareSansText-Medium.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-Medium.otf"; sourceTree = "<group>"; };
-		8C365268127520CD1EBE7721 /* CashflowTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CashflowTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		8C365268127520CD1EBE7721 /* CashflowTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CashflowTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		933AF8424DF7EA051A440FB1 /* SquareSansDisplay-Regular.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansDisplay-Regular.otf"; sourceTree = "<group>"; };
 		A4785E30E6141298A7CD9494 /* SquareSansDisplay-MediumCondensed.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansDisplay-MediumCondensed.otf"; sourceTree = "<group>"; };
 		AACDB4A56F87F55B57342118 /* SquareSansText-MediumItalic.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-MediumItalic.otf"; sourceTree = "<group>"; };
@@ -78,7 +80,7 @@
 		D512AE627C4BD3DA1E8F0D5C /* SquareSansDisplay-RegularExpanded.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansDisplay-RegularExpanded.otf"; sourceTree = "<group>"; };
 		D75E7118B3996645CC0BB200 /* SquareSansText-Regular.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-Regular.otf"; sourceTree = "<group>"; };
 		DDE36791416AE91812AE1A91 /* SquareSansDisplay-MediumExpanded.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansDisplay-MediumExpanded.otf"; sourceTree = "<group>"; };
-		ECDF5532177CE790D19F0FD6 /* Cashflow.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cashflow.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		ECDF5532177CE790D19F0FD6 /* Cashflow.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Cashflow.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED237567398128888E470E36 /* SquareSansDisplay-Bold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansDisplay-Bold.otf"; sourceTree = "<group>"; };
 		F1533699A778E5E97919D8B9 /* PLYearBarChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PLYearBarChart.swift; sourceTree = "<group>"; };
 		F7355B151DE363A0DD494076 /* SquareSansDisplay-BoldCondensed.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansDisplay-BoldCondensed.otf"; sourceTree = "<group>"; };
@@ -154,6 +156,7 @@
 			children = (
 				C9D4A3A21179C736C63E698F /* Color+App.swift */,
 				B5496EB6947638555D66DB92 /* Font+App.swift */,
+				0C480991E4DC78221B71199D /* SlotMachineText.swift */,
 			);
 			path = DesignSystem;
 			sourceTree = "<group>";
@@ -234,7 +237,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2630;
+				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					DE28C2C2443C047CEE312DFE = {
 						DevelopmentTeam = "";
@@ -305,6 +308,7 @@
 				5BEEDC2B0D5A607F13AD3B85 /* PLYearBarChart.swift in Sources */,
 				7CD6830C6B9A897417321512 /* ProfitLossDetailView.swift in Sources */,
 				AF50442063AAA6354656CC40 /* SecondaryNavBar.swift in Sources */,
+				5F279B0EE1236DC026EC91C4 /* SlotMachineText.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -364,7 +368,6 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -385,7 +388,6 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -429,7 +431,6 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -443,7 +444,6 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;

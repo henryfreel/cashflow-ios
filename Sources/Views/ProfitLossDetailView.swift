@@ -5,20 +5,35 @@ import SwiftUI
 struct ProfitLossDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var isScrolled = false
-    // Measured height of the metrics section; used as a stable layout spacer so
-    // the chart never shifts while the rows slide in/out. Seeded with a close
-    // approximation so the first frame renders without a visible jump.
+    // Measured height of the metrics section while data is available.
+    // Stored separately so metricsNoDataView can match it exactly, preventing
+    // the chart from shifting when navigating to a period with no data.
     @State private var metricsHeight: CGFloat = 200
+    @State private var normalMetricsHeight: CGFloat = 0
 
     // MARK: Period selection & navigation state
 
     // Selected segment: "Year", "Quarter", or "Month".
-    @State private var selectedPeriod: String = "Month"
+    @State private var selectedPeriod: String
     // Swipe navigates between full periods — year, quarter, or month.
     // Prototype context: Dec 15, 2024 — default to current year/quarter/month.
-    @State private var selectedYear:    Int = AppFinancials.currentYear
-    @State private var selectedQuarter: Int = AppFinancials.currentQuarter
-    @State private var selectedMonth:   Int = AppFinancials.currentMonth
+    @State private var selectedYear:    Int
+    @State private var selectedQuarter: Int
+    @State private var selectedMonth:   Int
+
+    /// Seeds the view with the period already visible on the Home card so the
+    /// bar chart opens on exactly the right month / quarter / year.
+    init(
+        initialPeriod:   String = "Month",
+        initialYear:     Int    = AppFinancials.currentYear,
+        initialQuarter:  Int    = AppFinancials.currentQuarter,
+        initialMonth:    Int    = AppFinancials.currentMonth
+    ) {
+        _selectedPeriod  = State(initialValue: initialPeriod)
+        _selectedYear    = State(initialValue: initialYear)
+        _selectedQuarter = State(initialValue: initialQuarter)
+        _selectedMonth   = State(initialValue: initialMonth)
+    }
     // Direction of last navigation (true = forward / left-swipe = newer period).
     @State private var slideLeft: Bool = true
     /// When true, metrics rows use slide transition. When false (filter switch), use opacity only.
@@ -69,6 +84,10 @@ struct ProfitLossDetailView: View {
         "Jan","Feb","Mar","Apr","May","Jun",
         "Jul","Aug","Sep","Oct","Nov","Dec"
     ]
+    /// Single-character labels matching the real MonthlyFinancial.month values ("J","F",…).
+    private static let monthChars = [
+        "J","F","M","A","M","J","J","A","S","O","N","D"
+    ]
 
     // MARK: Period-aware bar chart entries
 
@@ -84,8 +103,18 @@ struct ProfitLossDetailView: View {
                 let date = Calendar.current.date(from: comps) ?? Date()
                 let days = Calendar.current.range(of: .day, in: .month, for: date)?.count ?? 31
                 let abbrev = Self.monthAbbrevs[selectedMonth - 1]
-                return (0..<days).map { BarChartEntry(id: $0, label: "\($0 + 1)", fullLabel: "\(abbrev) \($0 + 1)", revenue: 0, expenses: 0) }
-            default: return (0..<12).map { BarChartEntry(id: $0, label: Self.monthAbbrevs[$0], fullLabel: Self.monthNames[$0], revenue: 0, expenses: 0) }
+                return (0..<days).map { i in
+                    let day = i + 1
+                    let dc = DateComponents(year: selectedYear, month: selectedMonth, day: day)
+                    let wdAbbrev: String
+                    if let d = Calendar.current.date(from: dc) {
+                        let idx = Calendar.current.component(.weekday, from: d) - 1
+                        wdAbbrev = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][idx]
+                    } else { wdAbbrev = "" }
+                    let fl = wdAbbrev.isEmpty ? "\(abbrev) \(day)" : "\(wdAbbrev), \(abbrev) \(day)"
+                    return BarChartEntry(id: i, label: "\(day)", fullLabel: fl, revenue: 0, expenses: 0)
+                }
+            default: return (0..<12).map { BarChartEntry(id: $0, label: Self.monthChars[$0], fullLabel: Self.monthNames[$0], revenue: 0, expenses: 0) }
             }
         }
         switch selectedPeriod {
@@ -107,8 +136,15 @@ struct ProfitLossDetailView: View {
             let isCurrentPeriod = selectedYear == AppFinancials.currentYear
                                 && selectedMonth == AppFinancials.currentMonth
             return AppFinancials.dailyData(year: selectedYear, month: selectedMonth).map { d in
-                BarChartEntry(id: d.id - 1, label: "\(d.id)",
-                              fullLabel: "\(abbrev) \(d.id)",
+                let dc = DateComponents(year: selectedYear, month: selectedMonth, day: d.id)
+                let wdAbbrev: String
+                if let date = Calendar.current.date(from: dc) {
+                    let idx = Calendar.current.component(.weekday, from: date) - 1
+                    wdAbbrev = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][idx]
+                } else { wdAbbrev = "" }
+                let fl = wdAbbrev.isEmpty ? "\(abbrev) \(d.id)" : "\(wdAbbrev), \(abbrev) \(d.id)"
+                return BarChartEntry(id: d.id - 1, label: "\(d.id)",
+                              fullLabel: fl,
                               revenue: d.revenue, expenses: d.expenses,
                               isCurrent: isCurrentPeriod && d.id == AppFinancials.currentDay)
             }
@@ -179,10 +215,15 @@ struct ProfitLossDetailView: View {
         let entry = currentEntries[si]
         switch selectedPeriod {
         case "Month":
-            // "December 12th" — no year (the period header already shows it)
+            // "Wed, Jan 1" — weekday abbreviation, month abbreviation, day number
             let day = entry.id + 1   // entry.id is 0-based; day number is 1-based
-            let monthName = Self.monthNames[selectedMonth - 1]
-            return "\(monthName) \(day)\(ordinalSuffix(day))"
+            let comps = DateComponents(year: selectedYear, month: selectedMonth, day: day)
+            if let date = Calendar.current.date(from: comps) {
+                let wdIdx = Calendar.current.component(.weekday, from: date) - 1  // 0 = Sun
+                let wd = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][wdIdx]
+                return "\(wd), \(Self.monthAbbrevs[selectedMonth - 1]) \(day)"
+            }
+            return "\(Self.monthAbbrevs[selectedMonth - 1]) \(day)"
         case "Quarter":
             // Replace en dash with hyphen for compact list-row titles
             return entry.fullLabel.replacingOccurrences(of: "–", with: "-")
@@ -226,10 +267,7 @@ struct ProfitLossDetailView: View {
     private var periodNavTitle: String {
         switch selectedPeriod {
         case "Quarter":
-            let startMonth = (selectedQuarter - 1) * 3 + 1
-            let endMonth   = selectedQuarter * 3
-            let endDay     = (endMonth == 6 || endMonth == 9) ? 30 : 31
-            return "\(Self.monthAbbrevs[startMonth - 1]) 1 – \(Self.monthAbbrevs[endMonth - 1]) \(endDay), \(selectedYear)"
+            return "Q\(selectedQuarter) \(selectedYear)"
         case "Month":
             return "\(Self.monthNames[selectedMonth - 1]), \(selectedYear)"
         default: // "Year"
@@ -263,38 +301,48 @@ struct ProfitLossDetailView: View {
         }
     }
 
-    private func navigateBack(animation: Animation = .easeInOut(duration: 0.3)) {
+    private func navigateBack(animation: Animation = .easeOut(duration: 0.18)) {
         guard canGoBack else { return }
+        scrubIndex = nil
         slideLeft = false
-        useSlideForMetrics = true  // Swipe navigation: slide animation
-        withAnimation(animation) {
-            switch selectedPeriod {
-            case "Quarter":
-                if selectedQuarter > 1 { selectedQuarter -= 1 }
-                else { selectedYear -= 1; selectedQuarter = 4 }
-            case "Month":
-                if selectedMonth > 1 { selectedMonth -= 1 }
-                else { selectedYear -= 1; selectedMonth = 12 }
-            case "Year": selectedYear -= 1
-            default: break
+        useSlideForMetrics = true
+        // Task gives SwiftUI one render pass to cache the slide transition on the old
+        // view before the period changes. This matters for button taps (chevrons) where
+        // SwiftUI may batch all state changes together; swipe gestures already separate
+        // the passes naturally so the Task is effectively a no-op there.
+        Task { @MainActor in
+            withAnimation(animation) {
+                switch selectedPeriod {
+                case "Quarter":
+                    if selectedQuarter > 1 { selectedQuarter -= 1 }
+                    else { selectedYear -= 1; selectedQuarter = 4 }
+                case "Month":
+                    if selectedMonth > 1 { selectedMonth -= 1 }
+                    else { selectedYear -= 1; selectedMonth = 12 }
+                case "Year": selectedYear -= 1
+                default: break
+                }
             }
         }
     }
 
-    private func navigateForward(animation: Animation = .easeInOut(duration: 0.3)) {
+    private func navigateForward(animation: Animation = .easeOut(duration: 0.18)) {
         guard canGoForward else { return }
+        scrubIndex = nil
         slideLeft = true
-        useSlideForMetrics = true  // Swipe navigation: slide animation
-        withAnimation(animation) {
-            switch selectedPeriod {
-            case "Quarter":
-                if selectedQuarter < 4 { selectedQuarter += 1 }
-                else { selectedYear += 1; selectedQuarter = 1 }
-            case "Month":
-                if selectedMonth < 12 { selectedMonth += 1 }
-                else { selectedYear += 1; selectedMonth = 1 }
-            case "Year": selectedYear += 1
-            default: break
+        useSlideForMetrics = true
+        Task { @MainActor in
+            withAnimation(animation) {
+                switch selectedPeriod {
+                case "Quarter":
+                    if selectedQuarter < 4 { selectedQuarter += 1 }
+                    else { selectedYear += 1; selectedQuarter = 1 }
+                case "Month":
+                    if selectedMonth < 12 { selectedMonth += 1 }
+                    else { selectedYear += 1; selectedMonth = 1 }
+                case "Year": selectedYear += 1
+                default: break
+                }
             }
         }
     }
@@ -308,29 +356,25 @@ struct ProfitLossDetailView: View {
         }
     }
 
-    // Direction-aware slide transition for the metrics rows.
-    // Only slide when user has swiped left/right (or tap same filter to return to current).
-    // When switching filter type (Month↔Quarter↔Year), no horizontal movement — content updates in place.
+    // Direction-aware slide transition for the metrics rows — pure offset, no opacity.
+    // Opacity fade is intentionally omitted: with a 400pt off-screen start position and
+    // opacity=0, the sliding content would be invisible for most of the animation, making
+    // it look like a plain fade rather than a slide (like iOS Photos page-turn).
     private var metricsTransition: AnyTransition {
         guard useSlideForMetrics else { return .identity }
         let sign: CGFloat = slideLeft ? 1 : -1
         return .asymmetric(
-            insertion: .offset(x:  sign * 400).combined(with: .opacity),
-            removal:   .offset(x: -sign * 400).combined(with: .opacity)
+            insertion: .offset(x:  sign * 390),
+            removal:   .offset(x: -sign * 390)
         )
     }
 
     private var metricsAnimationKey: String {
-        let base: String
         switch selectedPeriod {
-        case "Quarter": base = "Q\(selectedQuarter)-\(selectedYear)"
-        case "Month":   base = "M\(selectedMonth)-\(selectedYear)"
-        default:       base = "Y\(selectedYear)"
+        case "Quarter": return "Q\(selectedQuarter)-\(selectedYear)"
+        case "Month":   return "M\(selectedMonth)-\(selectedYear)"
+        default:        return "Y\(selectedYear)"
         }
-        if let si = scrubIndex {
-            return "\(base)-scrub-\(si)"
-        }
-        return base
     }
 
     // MARK: Drag gesture (applied on the metrics+chart zone)
@@ -394,16 +438,21 @@ struct ProfitLossDetailView: View {
                         periodNav
                             .padding(.bottom, 24)
 
-                        // Swipe: id changes → slide. Filter switch: stable id → content updates in place (no horizontal movement).
+                        // Always keyed to metricsAnimationKey (no conditional "inplace" id).
+                        // .animation(_:value:) fires implicitly on any metricsAnimationKey
+                        // change — swipe, chevron, or segment-pill return-to-current —
+                        // so the transition is always driven regardless of call site.
                         metricsSection
-                            .offset(x: bounceOffset)
-                            .id(useSlideForMetrics ? metricsAnimationKey : "metrics-inplace")
+                            .id(metricsAnimationKey)
                             .transition(metricsTransition)
-                            .animation(.easeOut(duration: 0.25), value: useSlideForMetrics ? metricsAnimationKey : "\(selectedPeriod)-\(selectedQuarter)-\(selectedMonth)-\(selectedYear)")
+                            .animation(.easeOut(duration: 0.25), value: metricsAnimationKey)
+                            .offset(x: bounceOffset)
                             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { h in
-                                if h > 0 { metricsHeight = h }
+                                if h > 0 {
+                                    metricsHeight = h
+                                    if hasDataForPeriod { normalMetricsHeight = h }
+                                }
                             }
-                            .background(Color.clear.frame(height: metricsHeight))
 
                         chartSection
                             .padding(.top, 37)
@@ -445,11 +494,13 @@ struct ProfitLossDetailView: View {
         VStack(spacing: 8) {
             // Big number — Display Bold 56pt, gray1, 115% line height.
             // Stays at 56pt; auto-shrinks (min 50%) if value is too wide to fit.
-            Text(fmt(netProfit))
-                .font(.display20)
-                .foregroundStyle(Color.gray1)
-                .contentTransition(.numericText(value: netProfit))
-                .monospacedDigit()
+            SlotMachineText(
+                text: fmt(netProfit),
+                value: netProfit,
+                font: .display20,
+                color: Color.gray1,
+                letterSpacing: -1.2
+            )
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
                 // 115% of 56pt ≈ 64pt — cap the bounding box so line spacing
@@ -491,27 +542,20 @@ struct ProfitLossDetailView: View {
 
     // MARK: Revenue / Expenses Card
 
-    /// Figma "Revenue-Expenses" (2337:39056). Outer: px=24, py=8, gap=4, rounded=12.
-    /// Each row: py=16, icon-to-text gap=12, items vertically centered.
+    /// Figma "Revenue-Expenses" (2378:16707). Outer: px=24, py=8, gap=6, rounded=12, border gray5.
+    /// Each row: gap-16 icon→content, py=16. Content: title 14pt/55% black, value 16pt SemiBold + (↑X%) inline.
     private var revenueExpensesCard: some View {
         let noData = !hasDataForPeriod
-        // Subtitle: YoY comparison when prev data exists; directional "No previous data" otherwise.
-        let revSubtitle: String = hasPrevYearData
-            ? yoyLabel(revYoyPct, up: true) + " since last year"
-            : "↑ No previous data"
-        let expSubtitle: String = hasPrevYearData
-            ? yoyLabel(expYoyPct, up: false) + " since last year"
-            : "↓ No previous data"
-        return VStack(spacing: 4) {
+        let showYoy = !noData && hasPrevYearData
+        return VStack(spacing: 6) {
             revExpRow(
                 image: noData ? "PLRowRingEmpty" : "PLRowRingRevenue",
                 title: "Total revenue",
                 value: fmt(totalRevenue),
-                subtitle: noData ? "↑ No previous data" : revSubtitle,
+                yoyPct: showYoy ? revYoyPct : nil,
                 animateValue: totalRevenue
             )
 
-            // Divider
             Rectangle()
                 .fill(Color.gray5)
                 .frame(height: 1)
@@ -521,11 +565,10 @@ struct ProfitLossDetailView: View {
                 title: "Total expenses",
                 value: fmt(totalExpenses),
                 valuePrefix: noData ? "" : "–",
-                subtitle: noData ? "↓ No previous data" : expSubtitle,
+                yoyPct: showYoy ? expYoyPct : nil,
                 animateValue: totalExpenses
             )
         }
-        // Outer container padding & styling
         .padding(.horizontal, 24)
         .padding(.vertical, 8)
         .background(Color.white)
@@ -552,58 +595,60 @@ struct ProfitLossDetailView: View {
         .frame(height: 22, alignment: .leading)
     }
 
+    /// Figma "Launcher row" (2378:16708 / 2378:16720).
+    /// HStack: icon(40×40) – content(flex-1) – chevron(16×16). Gap: 16.
+    /// Content VStack gap=2: title (14pt Regular, 55% black) / value row.
+    /// Value row HStack gap=4 aligned to lastTextBaseline: prefix+SlotMachineText (16pt SemiBold, 90% black) + (↑X%) (14pt, gray3).
     private func revExpRow(image: String,
                             title: String,
                             value: String,
                             valuePrefix: String = "",
-                            subtitle: String?,
-                            noPreviousData: Bool = false,
-                            greyValue: Bool = false,
+                            yoyPct: Double? = nil,
                             animateValue: Double? = nil) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            // Left: 40×40 ring icon
+        HStack(alignment: .center, spacing: 16) {
+            // 40×40 donut ring icon
             Image(image)
                 .resizable()
                 .scaledToFit()
                 .frame(width: 40, height: 40)
 
-            // Right: fills remaining width — [title · value] on row 1, subtitle on row 2
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .center, spacing: 0) {
-                    Text(title)
-                        .font(.paragraphSemibold30)
-                        .foregroundStyle(Color.gray1)
-                    Spacer()
+            // Content column: title above, value + YoY% below
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.paragraph20)
+                    .foregroundStyle(Color.black.opacity(0.55))
+                    .lineLimit(1)
+
+                HStack(alignment: .lastTextBaseline, spacing: 4) {
                     HStack(spacing: 0) {
                         if !valuePrefix.isEmpty {
                             Text(valuePrefix)
                                 .font(.paragraphSemibold30)
-                                .foregroundStyle(greyValue ? Color.gray4 : Color.gray1)
+                                .foregroundStyle(Color.black.opacity(0.9))
                         }
-                        Text(value)
-                            .font(.paragraphSemibold30)
-                            .foregroundStyle(greyValue ? Color.gray4 : Color.gray1)
-                            .contentTransition(animateValue != nil ? .numericText(value: animateValue!) : .identity)
-                            .monospacedDigit()
+                        SlotMachineText(
+                            text: value,
+                            value: animateValue ?? 0,
+                            font: .paragraphSemibold30,
+                            color: Color.black.opacity(0.9),
+                            animated: animateValue != nil
+                        )
                     }
-                }
-                .frame(height: 24)
 
-                Group {
-                    if noPreviousData {
-                        Text("No previous data")
-                            .font(.paragraph20)
-                            .foregroundStyle(Color.gray3)
-                    } else if let s = subtitle {
-                        Text(s)
-                            .font(.paragraph20)
+                    if let pct = yoyPct {
+                        let arrow = pct >= 0 ? "↑" : "↓"
+                        Text("(\(arrow)\(Int(abs(pct).rounded()))%)")
+                            .font(.paragraphSemibold20)
                             .foregroundStyle(Color.gray3)
                     }
                 }
-                .frame(height: 22, alignment: .leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Drill-through chevron
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color.black.opacity(0.3))
         }
         .padding(.vertical, 16)
     }
@@ -650,15 +695,16 @@ struct ProfitLossDetailView: View {
             useSlideForMetrics = false
             bounceOffset = 0
             if selectedPeriod == label {
-                // Tapping same period — if not on current, jump to current (like Home P&L card)
+                // Tapping same period — if not on current, jump to current (like Home P&L card).
                 switch label {
                 case "Year":
-                    // Tap same filter: return to current year (Dec 15, 2024 context)
                     if selectedYear != AppFinancials.currentYear {
                         useSlideForMetrics = true
                         slideLeft = selectedYear < AppFinancials.currentYear
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            selectedYear = AppFinancials.currentYear
+                        Task { @MainActor in
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                selectedYear = AppFinancials.currentYear
+                            }
                         }
                     }
                 case "Quarter":
@@ -666,9 +712,11 @@ struct ProfitLossDetailView: View {
                         useSlideForMetrics = true
                         slideLeft = selectedYear < AppFinancials.currentYear
                             || (selectedYear == AppFinancials.currentYear && selectedQuarter < AppFinancials.currentQuarter)
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            selectedYear = AppFinancials.currentYear
-                            selectedQuarter = AppFinancials.currentQuarter
+                        Task { @MainActor in
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                selectedYear = AppFinancials.currentYear
+                                selectedQuarter = AppFinancials.currentQuarter
+                            }
                         }
                     }
                 case "Month":
@@ -676,9 +724,11 @@ struct ProfitLossDetailView: View {
                         useSlideForMetrics = true
                         slideLeft = selectedYear < AppFinancials.currentYear
                             || (selectedYear == AppFinancials.currentYear && selectedMonth < AppFinancials.currentMonth)
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            selectedYear = AppFinancials.currentYear
-                            selectedMonth = AppFinancials.currentMonth
+                        Task { @MainActor in
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                selectedYear = AppFinancials.currentYear
+                                selectedMonth = AppFinancials.currentMonth
+                            }
                         }
                     }
                 default: break
@@ -764,19 +814,16 @@ struct ProfitLossDetailView: View {
         .frame(maxWidth: .infinity, alignment: .center)
     }
 
-    // MARK: Metrics Rows (slide on month change)
+    // MARK: Metrics Rows (slide on period change)
 
-    /// Explicit scrub vs period branches so SwiftUI runs remove/insert transitions
-    /// when releasing from scrub — otherwise it may treat it as an in-place update.
-    /// When no data for period (e.g. 2022), show Figma no-data design.
     @ViewBuilder
     private var metricsSection: some View {
         if !hasDataForPeriod {
             metricsNoDataView
-        } else if scrubIndex != nil {
-            scrubMetricsContent
+                .frame(height: normalMetricsHeight > 0 ? normalMetricsHeight : nil)
+                .clipped()
         } else {
-            periodMetricsContent
+            unifiedMetricsContent
         }
     }
 
@@ -813,42 +860,28 @@ struct ProfitLossDetailView: View {
         .padding(.bottom, 32)
     }
 
-    private var scrubMetricsContent: some View {
-        let label = scrubLabel!
-        let hasPrev = (scrubIndex ?? 0) < prevYearEntries.count && prevYearEntries[scrubIndex ?? 0].hasData
-        let yoySuffix = "since last year"
-        return metricsRows(
-            revTitle: "\(label) revenue",
-            expTitle: "\(label) expenses",
-            netTitle: "\(label) net profit",
-            revValue: scrubRevenue,
-            expValue: scrubExpenses,
-            netValue: scrubNetProfit,
-            revYoy: scrubRevYoyPct,
-            expYoy: scrubExpYoyPct,
-            netYoy: scrubNetYoyPct,
-            hasPrev: hasPrev,
-            yoySuffix: yoySuffix,
-            animateNumbers: false  // No slot animation while scrubbing
-        )
-    }
-
-    private var periodMetricsContent: some View {
-        let hasPrev = selectedYear > AppFinancials.minYear
-        let yoySuffix = "since last year"
+    private var unifiedMetricsContent: some View {
+        let isScrubbing = scrubIndex != nil
+        // A future bar has no data yet — show "TBD" instead of a YoY% that would be misleading.
+        let scrubBarHasData = scrubIndex.map { $0 < currentEntries.count && currentEntries[$0].hasData } ?? false
+        let isFutureScrub = isScrubbing && !scrubBarHasData
+        let hasPrev = isScrubbing && !isFutureScrub
+            ? (scrubIndex ?? 0) < prevYearEntries.count && prevYearEntries[scrubIndex ?? 0].hasData
+            : (!isScrubbing && selectedYear > AppFinancials.minYear)
         return metricsRows(
             revTitle: "Total revenue",
             expTitle: "Total expenses",
             netTitle: "Total net profit",
-            revValue: periodRevenue,
-            expValue: periodExpenses,
-            netValue: periodNetProfit,
-            revYoy: periodRevYoyPct,
-            expYoy: periodExpYoyPct,
-            netYoy: periodNetYoyPct,
+            revValue: isScrubbing ? scrubRevenue   : periodRevenue,
+            expValue: isScrubbing ? scrubExpenses  : periodExpenses,
+            netValue: isScrubbing ? scrubNetProfit : periodNetProfit,
+            revYoy:   isScrubbing ? scrubRevYoyPct   : periodRevYoyPct,
+            expYoy:   isScrubbing ? scrubExpYoyPct   : periodExpYoyPct,
+            netYoy:   isScrubbing ? scrubNetYoyPct   : periodNetYoyPct,
             hasPrev: hasPrev,
-            yoySuffix: yoySuffix,
-            animateNumbers: true  // Slot animation when switching years/filters
+            yoySuffix: "since last year",
+            isFutureScrub: isFutureScrub,
+            animateNumbers: isScrubbing
         )
     }
 
@@ -857,35 +890,41 @@ struct ProfitLossDetailView: View {
         revValue: Double, expValue: Double, netValue: Double,
         revYoy: Double, expYoy: Double, netYoy: Double,
         hasPrev: Bool, yoySuffix: String,
+        isFutureScrub: Bool = false,
         animateNumbers: Bool = false
     ) -> some View {
-        VStack(spacing: 0) {
+        // Kill any animation inherited from the parent (e.g. the swipe slide's
+        // withAnimation context) when not actively scrubbing. Without this, the
+        // ForEach inside SlotMachineText can reflow its HStack items with the slide
+        // animation, making digits appear to move horizontally during swipes.
+        let shouldAnimate = animateNumbers
+        return VStack(spacing: 0) {
             metricRow(
                 indicator: .revenue,
                 title: revTitle,
-                subtitle: hasPrev ? yoyLabel(revYoy, up: true) + " \(yoySuffix)" : nil,
+                subtitle: isFutureScrub ? "↑ Change from last year TBD" : (hasPrev ? yoyLabel(revYoy, up: true) + " \(yoySuffix)" : nil),
                 value: fmt(revValue),
                 valueFont: .paragraphSemibold30,
-                noPreviousData: !hasPrev,
+                noPreviousData: !hasPrev && !isFutureScrub,
                 animateValue: animateNumbers ? revValue : nil
             )
             metricRow(
                 indicator: .expenses,
                 title: expTitle,
-                subtitle: hasPrev ? yoyLabel(expYoy, up: false) + " \(yoySuffix)" : nil,
+                subtitle: isFutureScrub ? "↓ Change from last year TBD" : (hasPrev ? yoyLabel(expYoy, up: false) + " \(yoySuffix)" : nil),
                 value: fmt(expValue),
                 valuePrefix: "–",
                 valueFont: .paragraphSemibold30,
-                noPreviousData: !hasPrev,
+                noPreviousData: !hasPrev && !isFutureScrub,
                 animateValue: animateNumbers ? expValue : nil
             )
             metricRow(
                 indicator: .net,
                 title: netTitle,
-                subtitle: hasPrev ? yoyLabel(netYoy, up: true) + " \(yoySuffix)" : nil,
+                subtitle: isFutureScrub ? "↑ Change from last year TBD" : (hasPrev ? yoyLabel(netYoy, up: true) + " \(yoySuffix)" : nil),
                 value: fmt(netValue),
                 valueFont: .header2,
-                noPreviousData: !hasPrev,
+                noPreviousData: !hasPrev && !isFutureScrub,
                 animateValue: animateNumbers ? netValue : nil
             )
         }
@@ -932,12 +971,17 @@ struct ProfitLossDetailView: View {
                     Spacer()
                     HStack(spacing: 0) {
                         if !valuePrefix.isEmpty { Text(valuePrefix).font(valueFont).foregroundStyle(Color.gray1) }
-                        Text(value)
-                            .font(valueFont)
-                            .foregroundStyle(Color.gray1)
-                            .contentTransition(animateValue != nil ? .numericText(value: animateValue!) : .identity)
-                            .monospacedDigit()
-                            .multilineTextAlignment(.trailing)
+                        // Always render SlotMachineText so the view type never changes
+                        // between animated and non-animated states — eliminating the
+                        // layout shift caused by SwiftUI destroying and recreating the view.
+                        SlotMachineText(
+                            text: value,
+                            value: animateValue ?? 0,
+                            font: valueFont,
+                            color: Color.gray1,
+                            animated: animateValue != nil
+                        )
+                        .multilineTextAlignment(.trailing)
                     }
                 }
 
@@ -969,14 +1013,18 @@ struct ProfitLossDetailView: View {
             onScrubChanged: { idx in
                 if scrubIndex != idx {
                     lastScrubDirection = idx > (scrubIndex ?? -1)
-                    scrubIndex = idx
+                    useSlideForMetrics = false
+                    // Explicit animation context so SlotMachineText digit transitions
+                    // fire only during scrubbing — not during swipes or filter changes.
+                    withAnimation(.easeOut(duration: 0.12)) {
+                        scrubIndex = idx
+                    }
                     UISelectionFeedbackGenerator().selectionChanged()
                 }
             },
             onScrubEnded: {
-                let direction = !lastScrubDirection
+                useSlideForMetrics = false
                 withAnimation(.easeOut(duration: 0.25)) {
-                    slideLeft = direction
                     scrubIndex = nil
                 }
             },

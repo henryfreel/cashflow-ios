@@ -14,6 +14,12 @@ struct HomeView: View {
     @State private var greetingHeight: CGFloat = 0
     @State private var isScrolled = false
 
+    // Period state lifted from ProfitLossCard so it can be passed to ProfitLossDetailView.
+    @State private var cardPeriod:   String = "1M"
+    @State private var cardYear:     Int    = AppFinancials.currentYear
+    @State private var cardQuarter:  Int    = AppFinancials.currentQuarter
+    @State private var cardMonth:    Int    = AppFinancials.currentMonth
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
@@ -28,7 +34,13 @@ struct HomeView: View {
                     }
 
                 VStack(spacing: 24) {
-                    ProfitLossCard(showDetail: $showProfitLossDetail)
+                    ProfitLossCard(
+                        showDetail:      $showProfitLossDetail,
+                        selectedPeriod:  $cardPeriod,
+                        selectedYear:    $cardYear,
+                        selectedQuarter: $cardQuarter,
+                        selectedMonth:   $cardMonth
+                    )
                     LocationsCard()
                     SavingsCard()
                     CreditCardCard()
@@ -65,7 +77,12 @@ struct HomeView: View {
             TopNavigationBar(showBalance: showBalance, isScrolled: isScrolled)
         }
         .navigationDestination(isPresented: $showProfitLossDetail) {
-            ProfitLossDetailView()
+            ProfitLossDetailView(
+                initialPeriod:  { switch cardPeriod { case "1Q": return "Quarter"; case "1Y": return "Year"; default: return "Month" } }(),
+                initialYear:    cardYear,
+                initialQuarter: cardQuarter,
+                initialMonth:   cardMonth
+            )
         }
         .navigationBarHidden(true)
     }
@@ -160,18 +177,15 @@ private struct LauncherRow: View {
 
 private struct ProfitLossCard: View {
     @Binding var showDetail: Bool
+    @Binding var selectedPeriod:  String
+    @Binding var selectedYear:    Int
+    @Binding var selectedQuarter: Int
+    @Binding var selectedMonth:   Int
 
-    @State private var selectedPeriod = "1M"
     @State private var activeBarIndex: Int? = nil
     @State private var chartWidth: CGFloat = 0
     @State private var chartTopInCard: CGFloat = 0  // measured; drives tooltip Y
     @State private var tooltipHeight: CGFloat = 36  // measured; drives upper line segment
-
-    // Time-navigation state — each tracks the period currently shown in the chart.
-    // Resetting to current values when the user switches period pills keeps UX predictable.
-    @State private var selectedYear:    Int = AppFinancials.currentYear
-    @State private var selectedMonth:   Int = AppFinancials.currentMonth
-    @State private var selectedQuarter: Int = AppFinancials.currentQuarter
 
     // Slide-transition control
     @State private var slideLeft: Bool = true   // true = new chart enters from right (going forward)
@@ -567,11 +581,12 @@ private struct ProfitLossCard: View {
                 .padding(.bottom, 16)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(formattedValue(displayedProfit))
-                        .font(.display10)
-                        .foregroundStyle(Color.gray1)
-                        .contentTransition(.numericText(value: displayedProfit))
-                        .monospacedDigit()
+                    SlotMachineText(
+                        text: formattedValue(displayedProfit),
+                        value: displayedProfit,
+                        font: .display10,
+                        color: Color.gray1
+                    )
 
                     Text(periodSubtitle)
                         .font(.paragraph20)
