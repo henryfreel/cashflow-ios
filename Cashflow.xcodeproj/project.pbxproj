@@ -58,7 +58,7 @@
 		420847885186BE125C7DE757 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5A5A8200AFB4DD3FA0BA42B4 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		5F2D32A0DAD842D2F22D7D3D /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
-		6451CE345E21878B3BF62B76 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+		6451CE345E21878B3BF62B76 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
 		646902238A230AEF1D0670DC /* SquareSansText-SemiBold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-SemiBold.otf"; sourceTree = "<group>"; };
 		713C43D08447454AAB989F7C /* SquareSansText-BoldItalic.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-BoldItalic.otf"; sourceTree = "<group>"; };
 		7C32B5807B99DFCDF3FF51C9 /* SecondaryNavBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecondaryNavBar.swift; sourceTree = "<group>"; };
@@ -80,7 +80,7 @@
 		D512AE627C4BD3DA1E8F0D5C /* SquareSansDisplay-RegularExpanded.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansDisplay-RegularExpanded.otf"; sourceTree = "<group>"; };
 		D75E7118B3996645CC0BB200 /* SquareSansText-Regular.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-Regular.otf"; sourceTree = "<group>"; };
 		DDE36791416AE91812AE1A91 /* SquareSansDisplay-MediumExpanded.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansDisplay-MediumExpanded.otf"; sourceTree = "<group>"; };
-		ECDF5532177CE790D19F0FD6 /* Cashflow.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Cashflow.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		ECDF5532177CE790D19F0FD6 /* Cashflow.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cashflow.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED237567398128888E470E36 /* SquareSansDisplay-Bold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansDisplay-Bold.otf"; sourceTree = "<group>"; };
 		F1533699A778E5E97919D8B9 /* PLYearBarChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PLYearBarChart.swift; sourceTree = "<group>"; };
 		F7355B151DE363A0DD494076 /* SquareSansDisplay-BoldCondensed.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansDisplay-BoldCondensed.otf"; sourceTree = "<group>"; };
@@ -240,7 +240,6 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					DE28C2C2443C047CEE312DFE = {
-						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -490,7 +489,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 2EXWMSS3AZ;
 				INFOPLIST_FILE = Sources/App/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Cashflow;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -510,7 +509,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 2EXWMSS3AZ;
 				INFOPLIST_FILE = Sources/App/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Cashflow;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

@@ -912,7 +912,7 @@ private struct ProfitLossCard: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(Color.gray7)
-                VStack(spacing: 0) {
+                VStack(spacing: 4) {
                     Text("No data available")
                         .font(.paragraphSemibold20)
                         .foregroundStyle(Color.gray1)

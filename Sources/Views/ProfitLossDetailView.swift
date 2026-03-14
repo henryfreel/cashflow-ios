@@ -1,4 +1,25 @@
 import SwiftUI
+import UIKit
+
+// MARK: - Navigation back-gesture enabler
+
+/// Re-enables UIKit's interactive pop gesture recognizer for views that hide
+/// the navigation bar. Without this, `.navigationBarHidden(true)` causes UIKit
+/// to disable `interactivePopGestureRecognizer`, breaking the edge-swipe-back.
+private struct NavigationBackGestureEnabler: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> Impl { Impl() }
+    func updateUIViewController(_ vc: Impl, context: Context) {}
+
+    final class Impl: UIViewController {
+        override func viewWillAppear(_ animated: Bool) {
+            super.viewWillAppear(animated)
+            // Resetting the delegate to nil restores UIKit's default behaviour,
+            // which allows the gesture when there is more than one VC on the stack.
+            navigationController?.interactivePopGestureRecognizer?.isEnabled = true
+            navigationController?.interactivePopGestureRecognizer?.delegate = nil
+        }
+    }
+}
 
 // MARK: - Profit & Loss Detail
 
@@ -36,8 +57,10 @@ struct ProfitLossDetailView: View {
     }
     // Direction of last navigation (true = forward / left-swipe = newer period).
     @State private var slideLeft: Bool = true
-    /// When true, metrics rows use slide transition. When false (filter switch), use opacity only.
-    @State private var useSlideForMetrics: Bool = false
+    // Incremented on every swipe/chevron navigation. The metrics container is keyed
+    // to this counter so container replacement (and the slide transition) only fires
+    // during actual navigation — never during period-type switches (Month→Quarter etc).
+    @State private var metricsNavCounter: Int = 0
     // Rubber-band offset applied only to the sliding metrics rows.
     @State private var bounceOffset: CGFloat = 0
     // Scrubbing: which bar index is currently being hovered (nil = not scrubbing).
@@ -305,13 +328,14 @@ struct ProfitLossDetailView: View {
         guard canGoBack else { return }
         scrubIndex = nil
         slideLeft = false
-        useSlideForMetrics = true
-        // Task gives SwiftUI one render pass to cache the slide transition on the old
-        // view before the period changes. This matters for button taps (chevrons) where
-        // SwiftUI may batch all state changes together; swipe gestures already separate
-        // the passes naturally so the Task is effectively a no-op there.
+        // metricsNavCounter and the period change together in one withAnimation so the
+        // new container renders with the correct data on the first pass. Task defers to
+        // the next run-loop tick, which is needed for chevron button taps (synchronous)
+        // to get two render passes; swipe gesture calls are already async so Task is
+        // effectively a no-op for them.
         Task { @MainActor in
             withAnimation(animation) {
+                metricsNavCounter += 1
                 switch selectedPeriod {
                 case "Quarter":
                     if selectedQuarter > 1 { selectedQuarter -= 1 }
@@ -330,9 +354,9 @@ struct ProfitLossDetailView: View {
         guard canGoForward else { return }
         scrubIndex = nil
         slideLeft = true
-        useSlideForMetrics = true
         Task { @MainActor in
             withAnimation(animation) {
+                metricsNavCounter += 1
                 switch selectedPeriod {
                 case "Quarter":
                     if selectedQuarter < 4 { selectedQuarter += 1 }
@@ -357,11 +381,10 @@ struct ProfitLossDetailView: View {
     }
 
     // Direction-aware slide transition for the metrics rows — pure offset, no opacity.
-    // Opacity fade is intentionally omitted: with a 400pt off-screen start position and
-    // opacity=0, the sliding content would be invisible for most of the animation, making
-    // it look like a plain fade rather than a slide (like iOS Photos page-turn).
+    // This transition ALWAYS slides; it only ever fires when metricsNavCounter changes
+    // (i.e. during swipe/chevron navigation). Period-type switches (Month→Quarter) do
+    // not change the counter, so the container is never replaced and no transition fires.
     private var metricsTransition: AnyTransition {
-        guard useSlideForMetrics else { return .identity }
         let sign: CGFloat = slideLeft ? 1 : -1
         return .asymmetric(
             insertion: .offset(x:  sign * 390),
@@ -369,19 +392,21 @@ struct ProfitLossDetailView: View {
         )
     }
 
-    private var metricsAnimationKey: String {
-        switch selectedPeriod {
-        case "Quarter": return "Q\(selectedQuarter)-\(selectedYear)"
-        case "Month":   return "M\(selectedMonth)-\(selectedYear)"
-        default:        return "Y\(selectedYear)"
-        }
-    }
+    // Keyed only to the navigation counter — NOT to the period/year/month/quarter.
+    // This means container replacement only happens when we explicitly navigate,
+    // not when the period type is switched via the segment pill.
+    private var metricsAnimationKey: String { "nav-\(metricsNavCounter)" }
 
     // MARK: Drag gesture (applied on the metrics+chart zone)
 
     private var swipeGesture: some Gesture {
         DragGesture(minimumDistance: 20)
             .onChanged { value in
+                // Yield the left-edge zone (~20pt) to UIKit's interactive pop gesture.
+                guard value.startLocation.x > 20 else {
+                    if bounceOffset != 0 { bounceOffset = 0 }
+                    return
+                }
                 // Do not interfere while the scrub gesture is active
                 guard scrubIndex == nil else {
                     if bounceOffset != 0 { bounceOffset = 0 }
@@ -397,6 +422,7 @@ struct ProfitLossDetailView: View {
                 bounceOffset = atBoundary ? h * 0.25 : h
             }
             .onEnded { value in
+                guard value.startLocation.x > 20 else { return }
                 guard scrubIndex == nil else { return }
                 let h = value.translation.width
                 let v = value.translation.height
@@ -475,6 +501,7 @@ struct ProfitLossDetailView: View {
             }
         }
         .background(Color.white)
+        .background(NavigationBackGestureEnabler())
         .safeAreaInset(edge: .top, spacing: 0) {
             SecondaryNavBar(
                 title: "Profit & Loss",
@@ -691,29 +718,28 @@ struct ProfitLossDetailView: View {
 
     private func segmentPill(_ label: String) -> some View {
         Button {
-            // Filter switch: no slide, no residual offset. Only swipe or "tap same filter to return" triggers slide.
-            useSlideForMetrics = false
             bounceOffset = 0
             if selectedPeriod == label {
-                // Tapping same period — if not on current, jump to current (like Home P&L card).
+                // Tapping active period pill: if not already on current, jump back to current
+                // with a slide (same as chevron navigation).
                 switch label {
                 case "Year":
                     if selectedYear != AppFinancials.currentYear {
-                        useSlideForMetrics = true
                         slideLeft = selectedYear < AppFinancials.currentYear
                         Task { @MainActor in
                             withAnimation(.easeOut(duration: 0.2)) {
+                                metricsNavCounter += 1
                                 selectedYear = AppFinancials.currentYear
                             }
                         }
                     }
                 case "Quarter":
                     if selectedYear != AppFinancials.currentYear || selectedQuarter != AppFinancials.currentQuarter {
-                        useSlideForMetrics = true
                         slideLeft = selectedYear < AppFinancials.currentYear
                             || (selectedYear == AppFinancials.currentYear && selectedQuarter < AppFinancials.currentQuarter)
                         Task { @MainActor in
                             withAnimation(.easeOut(duration: 0.2)) {
+                                metricsNavCounter += 1
                                 selectedYear = AppFinancials.currentYear
                                 selectedQuarter = AppFinancials.currentQuarter
                             }
@@ -721,11 +747,11 @@ struct ProfitLossDetailView: View {
                     }
                 case "Month":
                     if selectedYear != AppFinancials.currentYear || selectedMonth != AppFinancials.currentMonth {
-                        useSlideForMetrics = true
                         slideLeft = selectedYear < AppFinancials.currentYear
                             || (selectedYear == AppFinancials.currentYear && selectedMonth < AppFinancials.currentMonth)
                         Task { @MainActor in
                             withAnimation(.easeOut(duration: 0.2)) {
+                                metricsNavCounter += 1
                                 selectedYear = AppFinancials.currentYear
                                 selectedMonth = AppFinancials.currentMonth
                             }
@@ -735,34 +761,28 @@ struct ProfitLossDetailView: View {
                 }
                 return
             }
+            // Switching to a DIFFERENT period type (Month → Quarter etc.).
+            // Counter is NOT incremented — no container replacement, no slide.
+            // Content updates in-place; no stale cached transition can fire.
             let previousPeriod = selectedPeriod
-            withAnimation(.easeOut(duration: 0.25)) {
-                bounceOffset = 0  // Ensure no residual from prior swipe
-                selectedPeriod = label
-                // Stay within the larger time frame: don't jump years when expanding view
-                switch label {
-                case "Year":
-                    // Keep current year (e.g. Quarter 2024 → Year stays 2024)
-                    break
-                case "Quarter":
-                    if previousPeriod == "Year" {
-                        selectedQuarter = selectedYear == AppFinancials.currentYear ? AppFinancials.currentQuarter : 4
-                    } else {
-                        // Month → Quarter: show quarter containing current month
-                        selectedQuarter = ((selectedMonth - 1) / 3) + 1
-                    }
-                    break
-                case "Month":
-                    if previousPeriod == "Year" {
-                        selectedQuarter = selectedYear == AppFinancials.currentYear ? AppFinancials.currentQuarter : 4
-                        selectedMonth = (selectedQuarter - 1) * 3 + 1
-                    } else {
-                        // Quarter → Month: show first month of current quarter
-                        selectedMonth = (selectedQuarter - 1) * 3 + 1
-                    }
-                    break
-                default: break
+            selectedPeriod = label
+            switch label {
+            case "Year":
+                break
+            case "Quarter":
+                if previousPeriod == "Year" {
+                    selectedQuarter = selectedYear == AppFinancials.currentYear ? AppFinancials.currentQuarter : 4
+                } else {
+                    selectedQuarter = ((selectedMonth - 1) / 3) + 1
                 }
+            case "Month":
+                if previousPeriod == "Year" {
+                    selectedQuarter = selectedYear == AppFinancials.currentYear ? AppFinancials.currentQuarter : 4
+                    selectedMonth = selectedQuarter * 3
+                } else {
+                    selectedMonth = selectedQuarter * 3
+                }
+            default: break
             }
         } label: {
             Text(label)
@@ -847,7 +867,7 @@ struct ProfitLossDetailView: View {
                     .multilineTextAlignment(.center)
                     .lineSpacing(22 - 18)
 
-                Text("Try adjusting the date range or applying different filters")
+                Text("Try adjusting the date range")
                     .font(.custom(AppFont.Text.regular, size: 14))
                     .foregroundStyle(Color.gray3)
                     .frame(maxWidth: 254)
@@ -1013,7 +1033,6 @@ struct ProfitLossDetailView: View {
             onScrubChanged: { idx in
                 if scrubIndex != idx {
                     lastScrubDirection = idx > (scrubIndex ?? -1)
-                    useSlideForMetrics = false
                     // Explicit animation context so SlotMachineText digit transitions
                     // fire only during scrubbing — not during swipes or filter changes.
                     withAnimation(.easeOut(duration: 0.12)) {
@@ -1023,7 +1042,6 @@ struct ProfitLossDetailView: View {
                 }
             },
             onScrubEnded: {
-                useSlideForMetrics = false
                 withAnimation(.easeOut(duration: 0.25)) {
                     scrubIndex = nil
                 }
