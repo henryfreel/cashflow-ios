@@ -1,21 +1,24 @@
 import SwiftUI
 
 struct TransactionsView: View {
-    // Incoming filter context (used to pre-populate state on init)
+    // Incoming filter context (pre-populates state on init)
     let periodLabel: String
     let cashflow:    String
     let category:    String?
     let location:    String?
 
     // MARK: Filter state
-    @State private var selectedDates:      Set<String> = []
+
+    @State private var selectedStartDate: Date?
+    @State private var selectedEndDate:   Date?
     @State private var selectedCashflows:  Set<String> = []
     @State private var selectedCategories: Set<String> = []
     @State private var selectedLocations:  Set<String> = []
 
-    @State private var activeFilter: TxActiveFilter? = nil
-    @State private var visibleCount: Int = 15
-    @State private var isScrolled: Bool = false
+    @State private var showDatePicker: Bool = false
+    @State private var activeFilter:   TxActiveFilter? = nil
+    @State private var visibleCount:   Int  = 15
+    @State private var isScrolled:     Bool = false
 
     @Environment(\.dismiss) private var dismiss
 
@@ -28,74 +31,55 @@ struct TransactionsView: View {
         self.category    = category
         self.location    = location
 
-        // Expand period label → constituent month keys (handles Month/Quarter/Year)
-        let dates = Self.monthKeys(forPeriodLabel: periodLabel)
-        if !dates.isEmpty { _selectedDates = State(initialValue: dates) }
-
+        if let range = Self.dateRange(forPeriodLabel: periodLabel) {
+            _selectedStartDate = State(initialValue: range.start)
+            _selectedEndDate   = State(initialValue: range.end)
+        }
         if cashflow != "All" && !cashflow.isEmpty {
             _selectedCashflows = State(initialValue: [cashflow])
         }
-        if let cat = category {
-            _selectedCategories = State(initialValue: [cat])
-        }
-        if let loc = location {
-            _selectedLocations = State(initialValue: [loc])
-        }
+        if let cat = category { _selectedCategories = State(initialValue: [cat]) }
+        if let loc = location { _selectedLocations  = State(initialValue: [loc]) }
     }
 
     // MARK: Derived state
 
     private var hasFilters: Bool {
-        !selectedDates.isEmpty || !selectedCashflows.isEmpty
+        selectedStartDate != nil || !selectedCashflows.isEmpty
             || !selectedCategories.isEmpty || !selectedLocations.isEmpty
     }
 
-    /// Hide per-row location label when exactly one location is filtered
-    /// (every visible row would show the same value — redundant).
     private var showLocation: Bool { selectedLocations.count != 1 }
 
-    // MARK: Filter options (static where possible)
+    // MARK: Filter options
 
     private static let locationOptions: [TxFilterOption] = [
         TxFilterOption(id: "Hayes Valley",   label: "Hayes Valley"),
         TxFilterOption(id: "Bernal Heights", label: "Bernal Heights"),
         TxFilterOption(id: "The Mission",    label: "The Mission"),
     ]
-
     private static let cashflowOptions: [TxFilterOption] = [
         TxFilterOption(id: "Revenue",  label: "Revenue"),
         TxFilterOption(id: "Expenses", label: "Expenses"),
     ]
-
     private static let categoryOptions: [TxFilterOption] =
         ExpenseCategory.allCases.map { TxFilterOption(id: $0.rawValue, label: $0.rawValue) }
-
-    /// Unique month-year labels derived from all available transactions, newest first.
-    private var dateOptions: [TxFilterOption] {
-        var seen   = Set<String>()
-        var result = [TxFilterOption]()
-        for tx in AppFinancials.allTransactions.sorted(by: { $0.date > $1.date }) {
-            let k = Self.monthKey(tx.date)
-            if seen.insert(k).inserted { result.append(TxFilterOption(id: k, label: k)) }
-        }
-        return result
-    }
 
     private func options(for f: TxActiveFilter) -> [TxFilterOption] {
         switch f {
         case .location: return Self.locationOptions
-        case .date:     return dateOptions
         case .cashflow: return Self.cashflowOptions
         case .category: return Self.categoryOptions
+        case .date:     return []   // handled by TxDatePickerSheet
         }
     }
 
     private func selectedBinding(for f: TxActiveFilter) -> Binding<Set<String>> {
         switch f {
         case .location: return $selectedLocations
-        case .date:     return $selectedDates
         case .cashflow: return $selectedCashflows
         case .category: return $selectedCategories
+        case .date:     return .constant([])
         }
     }
 
@@ -109,22 +93,47 @@ struct TransactionsView: View {
         }
     }
 
-    /// For Date: if the current selectedDates exactly matches the original
-    /// period label's expansion, show the original label (e.g. "Q4 2024")
-    /// rather than "3 selected".
     private var dateLabelValue: String? {
-        if selectedDates.isEmpty { return nil }
-        let original = Self.monthKeys(forPeriodLabel: periodLabel)
-        if !original.isEmpty && selectedDates == original { return periodLabel }
-        return chipValue(selectedDates)
+        guard let start = selectedStartDate else { return nil }
+        let cal = Calendar.current
+        let fmt = DateFormatter(); fmt.locale = Locale(identifier: "en_US")
+
+        if let end = selectedEndDate {
+            let sy = cal.component(.year,  from: start)
+            let sm = cal.component(.month, from: start)
+            let ey = cal.component(.year,  from: end)
+            let em = cal.component(.month, from: end)
+
+            if sy == ey && sm == em {
+                // Same month — "Dec 2024"
+                fmt.dateFormat = "MMM yyyy"
+                return fmt.string(from: start)
+            } else if sy == ey {
+                // Same year — "Jan – Dec 2024"
+                fmt.dateFormat = "MMM"
+                return "\(fmt.string(from: start)) – \(fmt.string(from: end)) \(sy)"
+            } else {
+                // Cross-year — "Jan 2023 – Dec 2024"
+                fmt.dateFormat = "MMM yyyy"
+                return "\(fmt.string(from: start)) – \(fmt.string(from: end))"
+            }
+        } else {
+            fmt.dateFormat = "MMM d, yyyy"
+            return fmt.string(from: start)
+        }
     }
 
     // MARK: Filtered items
 
     private var displayItems: [Transaction] {
-        AppFinancials.allTransactions.filter { tx in
-            let dateOk = selectedDates.isEmpty
-                || selectedDates.contains(Self.monthKey(tx.date))
+        let cal = Calendar.current
+        return AppFinancials.allTransactions.filter { tx in
+            let dateOk: Bool = {
+                guard let s = selectedStartDate else { return true }
+                let d = cal.startOfDay(for: tx.date)
+                if let e = selectedEndDate { return d >= s && d <= e }
+                return cal.isDate(d, inSameDayAs: s)
+            }()
             let locOk  = selectedLocations.isEmpty
                 || selectedLocations.contains(tx.locationName ?? "")
             let flowOk = selectedCashflows.isEmpty
@@ -133,7 +142,6 @@ struct TransactionsView: View {
                     : selectedCashflows.contains("Expenses"))
             let catOk: Bool = {
                 guard !selectedCategories.isEmpty else { return true }
-                // Revenue transactions are not filtered by expense category
                 guard let cat = tx.expenseCategory else { return true }
                 return selectedCategories.contains(cat)
             }()
@@ -148,47 +156,80 @@ struct TransactionsView: View {
         "July","August","September","October","November","December"
     ]
 
-    /// "January 2024" key for a given date.
-    static func monthKey(_ date: Date) -> String {
-        let c = Calendar.current.dateComponents([.year, .month], from: date)
-        return "\(monthNames[max(0, min(11, (c.month ?? 1) - 1))]) \(c.year ?? 0)"
+    /// The app's data horizon — no data exists beyond this date.
+    static var appToday: Date {
+        Calendar.current.date(from: DateComponents(year: 2024, month: 12, day: 15))!
     }
 
-    /// Expands a period label into the set of month-year keys it covers.
-    ///   "December 2024" → ["December 2024"]
-    ///   "Q4 2024"       → ["October 2024", "November 2024", "December 2024"]
-    ///   "2024"          → ["January 2024", ..., "December 2024"]
-    static func monthKeys(forPeriodLabel label: String) -> Set<String> {
+    /// Parses a period label into a (start, end) Date range,
+    /// clamping the end to `appToday` so future days are never included.
+    static func dateRange(forPeriodLabel label: String) -> (start: Date, end: Date)? {
+        let cal = Calendar.current
+        let fmt = DateFormatter(); fmt.locale = Locale(identifier: "en_US")
         let parts = label.components(separatedBy: " ")
-        if parts.count == 2, let year = Int(parts[1]) {
-            let first = parts[0]
-            if first.hasPrefix("Q"), let q = Int(first.dropFirst()), (1...4).contains(q) {
-                let start = (q - 1) * 3
-                return Set((start..<start + 3).map { "\(monthNames[$0]) \(year)" })
-            }
-            if monthNames.contains(first) { return [label] }
+
+        let horizon = appToday
+
+        // "Q4 2024"
+        if parts.count == 2, parts[0].hasPrefix("Q"),
+           let q = Int(parts[0].dropFirst()), (1...4).contains(q),
+           let year = Int(parts[1]) {
+            let sm = (q - 1) * 3 + 1
+            let em = q * 3
+            let s  = cal.date(from: DateComponents(year: year, month: sm, day: 1))!
+            let emonth = cal.date(from: DateComponents(year: year, month: em, day: 1))!
+            let days   = cal.range(of: .day, in: .month, for: emonth)!.count
+            let e      = cal.date(from: DateComponents(year: year, month: em, day: days))!
+            return (cal.startOfDay(for: s), min(cal.startOfDay(for: e), horizon))
         }
-        if parts.count == 1, let year = Int(parts[0]) {
-            return Set(monthNames.map { "\($0) \(year)" })
+
+        // "December 2024"
+        fmt.dateFormat = "MMMM yyyy"
+        if let d = fmt.date(from: label) {
+            let y    = cal.component(.year, from: d)
+            let m    = cal.component(.month, from: d)
+            let days = cal.range(of: .day, in: .month, for: d)!.count
+            let s    = cal.date(from: DateComponents(year: y, month: m, day: 1))!
+            let e    = cal.date(from: DateComponents(year: y, month: m, day: days))!
+            return (cal.startOfDay(for: s), min(cal.startOfDay(for: e), horizon))
         }
-        // "Jan - Dec, 2024" (year header format used on detail pages)
-        if label.contains("-"), let year = Int(label.components(separatedBy: ",").last?.trimmingCharacters(in: .whitespaces) ?? "") {
-            return Set(monthNames.map { "\($0) \(year)" })
+
+        // "2024" or "Jan - Dec, 2024"
+        let yearStr = label.contains(",")
+            ? (label.components(separatedBy: ",").last?.trimmingCharacters(in: .whitespaces) ?? "")
+            : label.trimmingCharacters(in: .whitespaces)
+        if let year = Int(yearStr) {
+            let s = cal.date(from: DateComponents(year: year, month: 1,  day: 1))!
+            let e = cal.date(from: DateComponents(year: year, month: 12, day: 31))!
+            return (cal.startOfDay(for: s), min(cal.startOfDay(for: e), horizon))
         }
-        return []
+
+        return nil
     }
 
-    // MARK: Sheet height
+    // MARK: Sheet helpers
 
-    /// Content-fitted height: 24pt top pad + 48pt header + 16pt gap +
-    /// 56pt × (All row + N option rows) + 64pt bottom pad.
+    @ViewBuilder
+    private func filterSheetContent(for filter: TxActiveFilter) -> some View {
+        let binding = selectedBinding(for: filter)
+        TxFilterSheet(
+            filter:      filter,
+            options:     options(for: filter),
+            initialKeys: binding.wrappedValue,
+            onCommit:    { newKeys in binding.wrappedValue = newKeys },
+            onDone:      { activeFilter = nil }
+        )
+        .presentationDetents([.height(sheetHeight(for: filter)), .large])
+        .presentationDragIndicator(.hidden)
+        .presentationBackground(Color.white)
+    }
+
+    // MARK: Sheet height (for non-date filters)
+
     private func sheetHeight(for filter: TxActiveFilter) -> CGFloat {
         let rowCount = options(for: filter).count
-        // 29pt grabber + 48pt header + 16pt gap + 56pt × (All + N rows) + 32pt bottom inset
         let full = CGFloat(29 + 48 + 16 + 56 * (1 + rowCount) + 32)
-        // Cap compact state at 60% of screen height; user can swipe up to .large
-        let max  = UIScreen.main.bounds.height * 0.60
-        return min(full, max)
+        return min(full, UIScreen.main.bounds.height * 0.60)
     }
 
     // MARK: Body
@@ -205,16 +246,17 @@ struct TransactionsView: View {
                         location:      chipValue(selectedLocations),
                         hasFilters:    hasFilters,
                         onClear: {
-                            selectedDates      = []
+                            selectedStartDate  = nil
+                            selectedEndDate    = nil
                             selectedCashflows  = []
                             selectedCategories = []
                             selectedLocations  = []
                             visibleCount       = 15
                         },
-                        onTapLocation: { activeFilter = .location },
-                        onTapDate:     { activeFilter = .date     },
-                        onTapCashflow: { activeFilter = .cashflow  },
-                        onTapCategory: { activeFilter = .category  }
+                        onTapLocation: { activeFilter = .location  },
+                        onTapDate:     { showDatePicker = true      },
+                        onTapCashflow: { activeFilter = .cashflow   },
+                        onTapCategory: { activeFilter = .category   }
                     )
                     .padding(.top, 24)
                     .padding(.bottom, 24)
@@ -231,29 +273,32 @@ struct TransactionsView: View {
             .onScrollGeometryChange(for: Bool.self) { geo in
                 geo.contentOffset.y + geo.contentInsets.top > 0
             } action: { _, scrolled in
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isScrolled = scrolled
-                }
+                withAnimation(.easeInOut(duration: 0.2)) { isScrolled = scrolled }
             }
         }
         .navigationBarHidden(true)
         .background(Color.white)
+        // Non-date filter sheet
         .sheet(item: $activeFilter) { filter in
-            TxFilterSheet(
-                filter:      filter,
-                options:     options(for: filter),
-                initialKeys: selectedBinding(for: filter).wrappedValue,
-                onCommit:    { newKeys in
-                    selectedBinding(for: filter).wrappedValue = newKeys
+            filterSheetContent(for: filter)
+        }
+        // Date picker sheet
+        .sheet(isPresented: $showDatePicker) {
+            TxDatePickerSheet(
+                initialStart: selectedStartDate,
+                initialEnd:   selectedEndDate,
+                onCommit: { start, end in
+                    selectedStartDate = start
+                    selectedEndDate   = end
+                    visibleCount      = 15
                 },
-                onDone: { activeFilter = nil }
+                onDone: { showDatePicker = false }
             )
-            .presentationDetents([.height(sheetHeight(for: filter)), .large])
+            .presentationDetents([.height(TxDatePickerSheet.compactHeight), .large])
             .presentationDragIndicator(.hidden)
-            .presentationCornerRadius(16)
             .presentationBackground(Color.white)
         }
-        .onChange(of: selectedDates)      { _, _ in visibleCount = 15 }
+        .onChange(of: selectedStartDate)  { _, _ in visibleCount = 15 }
         .onChange(of: selectedCashflows)  { _, _ in visibleCount = 15 }
         .onChange(of: selectedCategories) { _, _ in visibleCount = 15 }
         .onChange(of: selectedLocations)  { _, _ in visibleCount = 15 }

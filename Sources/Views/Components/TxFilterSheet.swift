@@ -53,6 +53,8 @@ struct TxFilterSheet: View {
         !pendingKeys.isEmpty && pendingKeys.count < options.count
     }
 
+    @State private var isScrolled = false
+
     var body: some View {
         VStack(spacing: 0) {
             // ── Grabber (fixed, outside scroll) ──────────────────────────────
@@ -86,6 +88,15 @@ struct TxFilterSheet: View {
             .frame(height: 48)
             .padding(.horizontal, 24)
             .padding(.bottom, 16)
+            .overlay(alignment: .bottom) {
+                if isScrolled {
+                    Rectangle()
+                        .fill(Color.gray5)
+                        .frame(height: 1)
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: isScrolled)
 
             // ── Options (scrollable) ──────────────────────────────────────────
             ScrollView(.vertical, showsIndicators: false) {
@@ -106,8 +117,16 @@ struct TxFilterSheet: View {
                 .padding(.horizontal, 24)
             }
             .safeAreaInset(edge: .bottom) { Color.clear.frame(height: 32) }
+            .onScrollGeometryChange(for: Bool.self) { geo in
+                geo.contentOffset.y + geo.contentInsets.top > 0
+            } action: { _, scrolled in
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isScrolled = scrolled
+                }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .sheetCornerMask()
     }
 
     private func toggle(_ opt: TxFilterOption) {
