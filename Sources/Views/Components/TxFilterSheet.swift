@@ -28,86 +28,94 @@ enum TxActiveFilter: String, Identifiable {
 struct TxFilterSheet: View {
     let filter: TxActiveFilter
     let options: [TxFilterOption]
-    @Binding var selectedKeys: Set<String>
+    /// The committed selection passed in from the parent.
+    let initialKeys: Set<String>
+    /// Called with the final selection only when Done is tapped.
+    let onCommit: (Set<String>) -> Void
     let onDone: () -> Void
 
-    private var allSelected: Bool { selectedKeys.isEmpty }
-    private var someSelected: Bool { !selectedKeys.isEmpty && selectedKeys.count < options.count }
+    /// Staged selection — changes here do NOT propagate until Done is tapped.
+    @State private var pendingKeys: Set<String>
 
-    private var bottomRadius: CGFloat { UIScreen.main.displayCornerRadius }
+    init(filter: TxActiveFilter, options: [TxFilterOption],
+         initialKeys: Set<String>,
+         onCommit: @escaping (Set<String>) -> Void,
+         onDone: @escaping () -> Void) {
+        self.filter     = filter
+        self.options    = options
+        self.initialKeys = initialKeys
+        self.onCommit   = onCommit
+        self.onDone     = onDone
+        _pendingKeys    = State(initialValue: initialKeys)
+    }
+
+    private var someSelected: Bool {
+        !pendingKeys.isEmpty && pendingKeys.count < options.count
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            // ── Grabber (inside card, always visible) ─────────────────────────
+            // ── Grabber (fixed, outside scroll) ──────────────────────────────
             RoundedRectangle(cornerRadius: 2.5)
                 .fill(Color.gray4)
                 .frame(width: 36, height: 5)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
 
-            // ── Content (leading-aligned) ─────────────────────────────────────
-            VStack(alignment: .leading, spacing: 16) {
-                // Header (48pt)
-                HStack(spacing: 10) {
-                    Text(filter.title)
-                        .font(.heading30)
-                        .foregroundStyle(Color.gray1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+            // ── Header (fixed, outside scroll) ───────────────────────────────
+            HStack(spacing: 10) {
+                Text(filter.title)
+                    .font(.heading30)
+                    .foregroundStyle(Color.gray1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                    Button(action: onDone) {
-                        Text("Done")
-                            .font(.paragraphSemibold30)
-                            .foregroundStyle(Color.white)
-                            .frame(height: 48)
-                            .padding(.horizontal, 22)
-                            .background(Color.gray1)
-                            .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
+                Button {
+                    onCommit(pendingKeys)
+                    onDone()
+                } label: {
+                    Text("Done")
+                        .font(.paragraphSemibold30)
+                        .foregroundStyle(Color.white)
+                        .frame(height: 48)
+                        .padding(.horizontal, 22)
+                        .background(Color.gray1)
+                        .clipShape(Capsule())
                 }
-                .frame(height: 48)
+                .buttonStyle(.plain)
+            }
+            .frame(height: 48)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 16)
 
-                // Options
+            // ── Options (scrollable) ──────────────────────────────────────────
+            ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 0) {
                     TxFilterRow(label: "All",
                                 state: someSelected ? .indeterminate : .checked) {
-                        selectedKeys = []
+                        pendingKeys = []
                     }
                     ForEach(options) { opt in
-                        let state: TxCheckboxState = (selectedKeys.isEmpty || selectedKeys.contains(opt.id)) ? .checked : .unchecked
+                        let state: TxCheckboxState =
+                            (pendingKeys.isEmpty || pendingKeys.contains(opt.id))
+                            ? .checked : .unchecked
                         TxFilterRow(label: opt.label, state: state) {
                             toggle(opt)
                         }
                     }
                 }
+                .padding(.horizontal, 24)
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 64)
-
-            Spacer(minLength: 0)
+            .safeAreaInset(edge: .bottom) { Color.clear.frame(height: 32) }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(
-            UnevenRoundedRectangle(
-                topLeadingRadius: 16,
-                bottomLeadingRadius: bottomRadius,
-                bottomTrailingRadius: bottomRadius,
-                topTrailingRadius: 16
-            )
-            .fill(Color.white)
-            .ignoresSafeArea(edges: .bottom)
-        )
     }
 
     private func toggle(_ opt: TxFilterOption) {
-        if selectedKeys.contains(opt.id) {
-            selectedKeys.remove(opt.id)
+        if pendingKeys.contains(opt.id) {
+            pendingKeys.remove(opt.id)
         } else {
-            selectedKeys.insert(opt.id)
-            // All individual options explicitly selected → revert to "All" (empty set)
-            if selectedKeys.count == options.count {
-                selectedKeys = []
-            }
+            pendingKeys.insert(opt.id)
+            if pendingKeys.count == options.count { pendingKeys = [] }
         }
     }
 }
@@ -129,6 +137,7 @@ struct TxFilterRow: View {
                 TxCheckbox(state: state)
             }
             .frame(height: 56)
+            .contentShape(Rectangle())
             .overlay(alignment: .bottom) {
                 Color.black.opacity(0.05).frame(height: 1)
             }

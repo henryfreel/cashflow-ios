@@ -49,6 +49,7 @@ struct TxFilterBar: View {
                 TxSearchButton()
                 if hasFilters {
                     TxClearFiltersChip(onClear: onClear)
+                        .transition(.scale(scale: 0.8).combined(with: .opacity))
                 }
                 TxChip(label: "Location", value: location,
                        onTap: onTapLocation)
@@ -60,6 +61,8 @@ struct TxFilterBar: View {
                        onTap: onTapCategory)
             }
             .padding(.horizontal, 24)
+            .animation(.easeInOut(duration: 0.25),
+                       value: "\(hasFilters)\(periodLabel)\(cashflow)\(category ?? "")\(location ?? "")")
         }
     }
 }

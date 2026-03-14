@@ -184,9 +184,11 @@ struct TransactionsView: View {
     /// 56pt × (All row + N option rows) + 64pt bottom pad.
     private func sheetHeight(for filter: TxActiveFilter) -> CGFloat {
         let rowCount = options(for: filter).count
-        // 29pt grabber area (12+5+12) + 48pt header + 16pt gap +
-        // 56pt × (All row + N option rows) + 64pt bottom pad
-        return CGFloat(29 + 48 + 16 + 56 * (1 + rowCount) + 64)
+        // 29pt grabber + 48pt header + 16pt gap + 56pt × (All + N rows) + 32pt bottom inset
+        let full = CGFloat(29 + 48 + 16 + 56 * (1 + rowCount) + 32)
+        // Cap compact state at 60% of screen height; user can swipe up to .large
+        let max  = UIScreen.main.bounds.height * 0.60
+        return min(full, max)
     }
 
     // MARK: Body
@@ -238,15 +240,18 @@ struct TransactionsView: View {
         .background(Color.white)
         .sheet(item: $activeFilter) { filter in
             TxFilterSheet(
-                filter:       filter,
-                options:      options(for: filter),
-                selectedKeys: selectedBinding(for: filter),
-                onDone:       { activeFilter = nil }
+                filter:      filter,
+                options:     options(for: filter),
+                initialKeys: selectedBinding(for: filter).wrappedValue,
+                onCommit:    { newKeys in
+                    selectedBinding(for: filter).wrappedValue = newKeys
+                },
+                onDone: { activeFilter = nil }
             )
             .presentationDetents([.height(sheetHeight(for: filter)), .large])
             .presentationDragIndicator(.hidden)
             .presentationCornerRadius(16)
-            .presentationBackground(Color.clear)
+            .presentationBackground(Color.white)
         }
         .onChange(of: selectedDates)      { _, _ in visibleCount = 15 }
         .onChange(of: selectedCashflows)  { _, _ in visibleCount = 15 }
