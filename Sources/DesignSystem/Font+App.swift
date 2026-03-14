@@ -28,6 +28,7 @@ enum AppFont {
 extension Font {
     // Display — Square Sans Display
     static let display20 = Font.custom(AppFont.Display.bold,   size: 56) // Display/20 — full-page hero amount
+    static let display15 = Font.custom(AppFont.Display.bold,   size: 48) // Display/15 — 48pt hero amount
     static let display10 = Font.custom(AppFont.Display.bold,   size: 32) // Display/10
     static let heading30 = Font.custom(AppFont.Display.bold,   size: 26) // Heading/30
     static let heading20 = Font.custom(AppFont.Display.bold,   size: 19) // Heading/20

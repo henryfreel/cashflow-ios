@@ -36,6 +36,8 @@ struct ProfitLossDetailView: View {
 
     // Selected segment: "Year", "Quarter", or "Month".
     @State private var selectedPeriod: String
+    /// Tracks which donut segment is selected on Revenue / Expenses pages.
+    @State private var selectedDonutIndex: Int = 0
     // Swipe navigates between full periods — year, quarter, or month.
     // Prototype context: Dec 15, 2024 — default to current year/quarter/month.
     @State private var selectedYear:    Int
@@ -44,17 +46,32 @@ struct ProfitLossDetailView: View {
 
     /// Seeds the view with the period already visible on the Home card so the
     /// bar chart opens on exactly the right month / quarter / year.
+    /// Navigation bar title shown at the top of the page.
+    let pageTitle: String
+    /// When false the revenue/expenses donut-arc card is hidden.
+    /// Used by the Revenue and Expenses detail pages which share this
+    /// view's structure but are focused on a single metric.
+    let showRevenueExpensesCard: Bool
+
     init(
-        initialPeriod:   String = "Month",
-        initialYear:     Int    = AppFinancials.currentYear,
-        initialQuarter:  Int    = AppFinancials.currentQuarter,
-        initialMonth:    Int    = AppFinancials.currentMonth
+        pageTitle:       String  = "Profit & Loss",
+        showRevenueExpensesCard: Bool = true,
+        initialPeriod:   String  = "Month",
+        initialYear:     Int     = AppFinancials.currentYear,
+        initialQuarter:  Int     = AppFinancials.currentQuarter,
+        initialMonth:    Int     = AppFinancials.currentMonth
     ) {
+        self.pageTitle = pageTitle
+        self.showRevenueExpensesCard = showRevenueExpensesCard
         _selectedPeriod  = State(initialValue: initialPeriod)
         _selectedYear    = State(initialValue: initialYear)
         _selectedQuarter = State(initialValue: initialQuarter)
         _selectedMonth   = State(initialValue: initialMonth)
     }
+
+    // Navigation state for drilling into Revenue / Expenses detail pages.
+    @State private var showRevenueDetail  = false
+    @State private var showExpensesDetail = false
     // Direction of last navigation (true = forward / left-swipe = newer period).
     @State private var slideLeft: Bool = true
     // Incremented on every swipe/chevron navigation. The metrics container is keyed
@@ -85,6 +102,61 @@ struct ProfitLossDetailView: View {
     private var totalExpenses:  Double { monthsForSelectedYear.reduce(0) { $0 + $1.expenses } }
     private var netProfit:      Double { totalRevenue - totalExpenses }
 
+    // Category breakdowns for the donut charts on Revenue / Expenses pages.
+    private var revenueBreakdown: RevenueBreakdown { RevenueBreakdown(total: totalRevenue) }
+    private var expenseBreakdown: ExpenseBreakdown { ExpenseBreakdown(total: totalExpenses) }
+
+    private var revenueDonutSegments: [DonutChartView.Segment] {
+        let b = revenueBreakdown
+        return [
+            .init(id: 0, name: RevenueCategory.squareCard.rawValue, value: b.squareCard),
+            .init(id: 1, name: RevenueCategory.online.rawValue,     value: b.online),
+            .init(id: 2, name: RevenueCategory.cash.rawValue,       value: b.cash),
+            .init(id: 3, name: RevenueCategory.giftCard.rawValue,   value: b.giftCard),
+        ]
+    }
+
+    private var expenseDonutSegments: [DonutChartView.Segment] {
+        let b = expenseBreakdown
+        return [
+            .init(id: 0, name: ExpenseCategory.cogs.rawValue,      value: b.cogs),
+            .init(id: 1, name: ExpenseCategory.labor.rawValue,      value: b.labor),
+            .init(id: 2, name: ExpenseCategory.rent.rawValue,       value: b.rent),
+            .init(id: 3, name: ExpenseCategory.marketing.rawValue,  value: b.marketing),
+            .init(id: 4, name: ExpenseCategory.utilities.rawValue,  value: b.utilities),
+            .init(id: 5, name: ExpenseCategory.misc.rawValue,       value: b.misc),
+        ]
+    }
+
+    private var donutPeriodLabel: String { "Jan – Dec \(selectedYear)" }
+
+    /// The proportion of the annual total that the selected donut segment represents.
+    /// Fixed proportions mean this equals the category's share for any sub-period too.
+    private var selectedCategoryProportion: Double {
+        guard !showRevenueExpensesCard else { return 0 }
+        let segs = pageTitle == "Revenue" ? revenueDonutSegments : expenseDonutSegments
+        let annualTotal = pageTitle == "Revenue" ? totalRevenue : totalExpenses
+        guard selectedDonutIndex < segs.count, annualTotal > 0 else { return 0 }
+        return segs[selectedDonutIndex].value / annualTotal
+    }
+
+    /// The selected category's value for the current period (month/quarter/year/day).
+    private var categoryPeriodValue: Double {
+        (pageTitle == "Revenue" ? periodRevenue : periodExpenses) * selectedCategoryProportion
+    }
+
+    /// The selected category's value for the current scrub bar.
+    private var categoryScrubValue: Double {
+        (pageTitle == "Revenue" ? scrubRevenue : scrubExpenses) * selectedCategoryProportion
+    }
+
+    /// The name of the currently selected donut segment.
+    private var selectedCategoryName: String {
+        let segs = pageTitle == "Revenue" ? revenueDonutSegments : expenseDonutSegments
+        guard selectedDonutIndex < segs.count else { return "" }
+        return segs[selectedDonutIndex].name
+    }
+
     private var totalRevenuePrev:  Double { monthsForPrevYear.reduce(0) { $0 + $1.revenue } }
     private var totalExpensesPrev: Double { monthsForPrevYear.reduce(0) { $0 + $1.expenses } }
     private var netProfitPrev:    Double { totalRevenuePrev - totalExpensesPrev }
@@ -96,6 +168,42 @@ struct ProfitLossDetailView: View {
 
     private var revYoyPct: Double { totalRevenuePrev != 0 ? ((totalRevenue - totalRevenuePrev) / abs(totalRevenuePrev)) * 100 : 0 }
     private var expYoyPct: Double { totalExpensesPrev != 0 ? ((totalExpenses - totalExpensesPrev) / abs(totalExpensesPrev)) * 100 : 0 }
+
+    // Per-page hero values — adapts to Revenue / Expenses / P&L pages.
+    private var heroValue: Double {
+        switch pageTitle {
+        case "Revenue":  return totalRevenue
+        case "Expenses": return totalExpenses
+        default:         return netProfit
+        }
+    }
+    private var heroLabel: String {
+        switch pageTitle {
+        case "Revenue":  return "Total revenue for \(selectedYear)"
+        case "Expenses": return "Total expenses for \(selectedYear)"
+        default:         return "Total net profit for \(selectedYear)"
+        }
+    }
+    private var heroYoyDiff: Double {
+        switch pageTitle {
+        case "Revenue":  return totalRevenue - totalRevenuePrev
+        case "Expenses": return totalExpenses - totalExpensesPrev
+        default:         return yoyDiff
+        }
+    }
+    private var heroYoyPct: Double {
+        switch pageTitle {
+        case "Revenue":  return revYoyPct
+        case "Expenses": return expYoyPct
+        default:         return yoyPct
+        }
+    }
+    /// True when the change is directionally positive for the viewer.
+    /// Revenue/P&L: up is good. Expenses: down is good.
+    private var heroChangeIsGood: Bool {
+        pageTitle == "Expenses" ? heroYoyDiff < 0 : heroYoyDiff >= 0
+    }
+    private var heroChangeColor: Color { heroChangeIsGood ? Color.green3 : Color.red3 }
 
     // MARK: Label tables
 
@@ -453,8 +561,21 @@ struct ProfitLossDetailView: View {
                         .padding(.top, 24)
                         .padding(.bottom, 48)
 
-                    revenueExpensesCard
+                    if showRevenueExpensesCard {
+                        revenueExpensesCard
+                            .padding(.bottom, 48)
+                    } else {
+                        DonutChartView(
+                            segments: pageTitle == "Revenue"
+                                ? revenueDonutSegments
+                                : expenseDonutSegments,
+                            accentColor: pageTitle == "Revenue" ? Color.green3 : Color.red3,
+                            periodLabel: donutPeriodLabel,
+                            selectedSegmentIndex: $selectedDonutIndex
+                        )
+                        .frame(width: 320, height: 320)
                         .padding(.bottom, 48)
+                    }
 
                     segmentedControl
                         .padding(.bottom, 32)
@@ -500,11 +621,31 @@ struct ProfitLossDetailView: View {
                 isScrolled = scrolled
             }
         }
+        .navigationDestination(isPresented: $showRevenueDetail) {
+            ProfitLossDetailView(
+                pageTitle: "Revenue",
+                showRevenueExpensesCard: false,
+                initialPeriod:  selectedPeriod,
+                initialYear:    selectedYear,
+                initialQuarter: selectedQuarter,
+                initialMonth:   selectedMonth
+            )
+        }
+        .navigationDestination(isPresented: $showExpensesDetail) {
+            ProfitLossDetailView(
+                pageTitle: "Expenses",
+                showRevenueExpensesCard: false,
+                initialPeriod:  selectedPeriod,
+                initialYear:    selectedYear,
+                initialQuarter: selectedQuarter,
+                initialMonth:   selectedMonth
+            )
+        }
         .background(Color.white)
         .background(NavigationBackGestureEnabler())
         .safeAreaInset(edge: .top, spacing: 0) {
             SecondaryNavBar(
-                title: "Profit & Loss",
+                title: pageTitle,
                 onBack: { dismiss() },
                 centerSubtitle: "All locations",
                 isScrolled: isScrolled
@@ -519,42 +660,41 @@ struct ProfitLossDetailView: View {
     /// pt=40, pb=48, px=16. Inner VStack gap=8.
     private var heroSection: some View {
         VStack(spacing: 8) {
-            // Big number — Display Bold 56pt, gray1, 115% line height.
-            // Stays at 56pt; auto-shrinks (min 50%) if value is too wide to fit.
+            // Big number — Display Bold 48pt, 56pt line height.
             SlotMachineText(
-                text: fmt(netProfit),
-                value: netProfit,
-                font: .display20,
+                text: fmt(heroValue),
+                value: heroValue,
+                font: .display15,
                 color: Color.gray1,
                 letterSpacing: -1.2
             )
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
-                // 115% of 56pt ≈ 64pt — cap the bounding box so line spacing
-                // never expands beyond spec when the number fits on one line.
-                .frame(maxWidth: .infinity, minHeight: 56 * 1.15, maxHeight: 56 * 1.15, alignment: .center)
+                .frame(maxWidth: .infinity, minHeight: 56, maxHeight: 56, alignment: .center)
+                .padding(.top, 8)
 
             // Subtext block — two rows, items-center, each row 22pt tall
             VStack(spacing: 0) {
-                // "Total net profit for YYYY" — 14pt SemiBold, gray3, 22pt line height
-                Text("Total net profit for \(String(selectedYear))")
+                Text(heroLabel)
                     .font(.paragraphSemibold20)
                     .foregroundStyle(Color.gray3)
                     .frame(height: 22, alignment: .center)
                     .fixedSize(horizontal: true, vertical: false)
 
-                // YoY comparison row, or Figma "Account message" when no previous data
+                // YoY comparison row, or "Account message" when no previous data
                 if hasPrevYearData {
                     HStack(spacing: 2) {
                         Image("PLUpArrow")
                             .resizable()
                             .scaledToFit()
                             .frame(width: 16, height: 16)
-                            .foregroundStyle(Color.green3)
+                            // Arrow shows actual change direction; color shows good vs bad.
+                            .rotationEffect(heroYoyDiff >= 0 ? .zero : .degrees(180))
+                            .foregroundStyle(heroChangeColor)
 
-                        Text("\(fmt(abs(yoyDiff))) (\(Int(yoyPct.rounded()))%) from last year")
+                        Text("\(fmt(abs(heroYoyDiff))) (\(Int(abs(heroYoyPct).rounded()))%) from last year")
                             .font(.paragraphSemibold20)
-                            .foregroundStyle(Color.green3)
+                            .foregroundStyle(heroChangeColor)
                             .fixedSize(horizontal: true, vertical: false)
                     }
                     .frame(height: 22, alignment: .center)
@@ -575,26 +715,32 @@ struct ProfitLossDetailView: View {
         let noData = !hasDataForPeriod
         let showYoy = !noData && hasPrevYearData
         return VStack(spacing: 6) {
-            revExpRow(
-                image: noData ? "PLRowRingEmpty" : "PLRowRingRevenue",
-                title: "Total revenue",
-                value: fmt(totalRevenue),
-                yoyPct: showYoy ? revYoyPct : nil,
-                animateValue: totalRevenue
-            )
+            Button { showRevenueDetail = true } label: {
+                revExpRow(
+                    image: noData ? "PLRowRingEmpty" : "PLRowRingRevenue",
+                    title: "Total revenue",
+                    value: fmt(totalRevenue),
+                    yoyPct: showYoy ? revYoyPct : nil,
+                    animateValue: totalRevenue
+                )
+            }
+            .buttonStyle(.plain)
 
             Rectangle()
                 .fill(Color.gray5)
                 .frame(height: 1)
 
-            revExpRow(
-                image: noData ? "PLRowRingEmpty" : "PLRowRingExpenses",
-                title: "Total expenses",
-                value: fmt(totalExpenses),
-                valuePrefix: noData ? "" : "–",
-                yoyPct: showYoy ? expYoyPct : nil,
-                animateValue: totalExpenses
-            )
+            Button { showExpensesDetail = true } label: {
+                revExpRow(
+                    image: noData ? "PLRowRingEmpty" : "PLRowRingExpenses",
+                    title: "Total expenses",
+                    value: fmt(totalExpenses),
+                    valuePrefix: noData ? "" : "–",
+                    yoyPct: showYoy ? expYoyPct : nil,
+                    animateValue: totalExpenses
+                )
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 8)
@@ -888,20 +1034,41 @@ struct ProfitLossDetailView: View {
         let hasPrev = isScrubbing && !isFutureScrub
             ? (scrubIndex ?? 0) < prevYearEntries.count && prevYearEntries[scrubIndex ?? 0].hasData
             : (!isScrubbing && selectedYear > AppFinancials.minYear)
+
+        // On Revenue / Expenses pages the third row shows the selected donut category.
+        let isCategory = !showRevenueExpensesCard
+        let catName     = isCategory ? selectedCategoryName : "Total net profit"
+        let catValue    = isCategory
+            ? (isScrubbing ? categoryScrubValue : categoryPeriodValue)
+            : (isScrubbing ? scrubNetProfit : periodNetProfit)
+        // Category's YoY% equals the parent metric's YoY% (fixed-proportion data).
+        let catYoy      = isCategory
+            ? (pageTitle == "Revenue"
+                ? (isScrubbing ? scrubRevYoyPct : periodRevYoyPct)
+                : (isScrubbing ? scrubExpYoyPct : periodExpYoyPct))
+            : (isScrubbing ? scrubNetYoyPct : periodNetYoyPct)
+        let catIndicator: IndicatorKind = isCategory
+            ? .dot(pageTitle == "Revenue" ? Color.green3 : Color.red3)
+            : .net
+        let catValuePrefix = (isCategory && pageTitle == "Expenses") ? "–" : ""
+
         return metricsRows(
             revTitle: "Total revenue",
             expTitle: "Total expenses",
-            netTitle: "Total net profit",
+            netTitle: catName,
             revValue: isScrubbing ? scrubRevenue   : periodRevenue,
             expValue: isScrubbing ? scrubExpenses  : periodExpenses,
-            netValue: isScrubbing ? scrubNetProfit : periodNetProfit,
+            netValue: catValue,
             revYoy:   isScrubbing ? scrubRevYoyPct   : periodRevYoyPct,
             expYoy:   isScrubbing ? scrubExpYoyPct   : periodExpYoyPct,
-            netYoy:   isScrubbing ? scrubNetYoyPct   : periodNetYoyPct,
+            netYoy:   catYoy,
             hasPrev: hasPrev,
             yoySuffix: "since last year",
             isFutureScrub: isFutureScrub,
-            animateNumbers: isScrubbing
+            animateNumbers: isScrubbing,
+            netIndicator: catIndicator,
+            netValuePrefix: catValuePrefix,
+            netValueFont: isCategory ? .paragraphSemibold30 : .header2
         )
     }
 
@@ -911,7 +1078,10 @@ struct ProfitLossDetailView: View {
         revYoy: Double, expYoy: Double, netYoy: Double,
         hasPrev: Bool, yoySuffix: String,
         isFutureScrub: Bool = false,
-        animateNumbers: Bool = false
+        animateNumbers: Bool = false,
+        netIndicator: IndicatorKind = .net,
+        netValuePrefix: String = "",
+        netValueFont: Font = .header2
     ) -> some View {
         // Kill any animation inherited from the parent (e.g. the swipe slide's
         // withAnimation context) when not actively scrubbing. Without this, the
@@ -919,38 +1089,56 @@ struct ProfitLossDetailView: View {
         // animation, making digits appear to move horizontally during swipes.
         let shouldAnimate = animateNumbers
         return VStack(spacing: 0) {
+            if pageTitle != "Expenses" {
+                metricRow(
+                    indicator: .revenue,
+                    title: revTitle,
+                    subtitle: isFutureScrub ? "↑ Change from last year TBD" : (hasPrev ? yoyLabel(revYoy, up: true) + " \(yoySuffix)" : nil),
+                    value: fmt(revValue),
+                    valueFont: .paragraphSemibold30,
+                    noPreviousData: !hasPrev && !isFutureScrub,
+                    animateValue: animateNumbers ? revValue : nil
+                )
+            }
+            if pageTitle != "Revenue" {
+                metricRow(
+                    indicator: .expenses,
+                    title: expTitle,
+                    subtitle: isFutureScrub ? "↓ Change from last year TBD" : (hasPrev ? yoyLabel(expYoy, up: false) + " \(yoySuffix)" : nil),
+                    value: fmt(expValue),
+                    valuePrefix: "–",
+                    valueFont: .paragraphSemibold30,
+                    noPreviousData: !hasPrev && !isFutureScrub,
+                    animateValue: animateNumbers ? expValue : nil
+                )
+            }
             metricRow(
-                indicator: .revenue,
-                title: revTitle,
-                subtitle: isFutureScrub ? "↑ Change from last year TBD" : (hasPrev ? yoyLabel(revYoy, up: true) + " \(yoySuffix)" : nil),
-                value: fmt(revValue),
-                valueFont: .paragraphSemibold30,
-                noPreviousData: !hasPrev && !isFutureScrub,
-                animateValue: animateNumbers ? revValue : nil
-            )
-            metricRow(
-                indicator: .expenses,
-                title: expTitle,
-                subtitle: isFutureScrub ? "↓ Change from last year TBD" : (hasPrev ? yoyLabel(expYoy, up: false) + " \(yoySuffix)" : nil),
-                value: fmt(expValue),
-                valuePrefix: "–",
-                valueFont: .paragraphSemibold30,
-                noPreviousData: !hasPrev && !isFutureScrub,
-                animateValue: animateNumbers ? expValue : nil
-            )
-            metricRow(
-                indicator: .net,
+                indicator: netIndicator,
                 title: netTitle,
-                subtitle: isFutureScrub ? "↑ Change from last year TBD" : (hasPrev ? yoyLabel(netYoy, up: true) + " \(yoySuffix)" : nil),
+                subtitle: isFutureScrub
+                    ? (netIndicator.isExpenseKind ? "↓ Change from last year TBD" : "↑ Change from last year TBD")
+                    : (hasPrev ? yoyLabel(netYoy, up: !netIndicator.isExpenseKind) + " \(yoySuffix)" : nil),
                 value: fmt(netValue),
-                valueFont: .header2,
+                valuePrefix: netValuePrefix,
+                valueFont: netValueFont,
                 noPreviousData: !hasPrev && !isFutureScrub,
                 animateValue: animateNumbers ? netValue : nil
             )
         }
     }
 
-    private enum IndicatorKind { case revenue, expenses, net }
+    private enum IndicatorKind {
+        case revenue
+        case expenses
+        case net
+        /// A plain dot with an arbitrary fill color (used for donut-category rows).
+        case dot(Color)
+
+        var isExpenseKind: Bool {
+            if case .expenses = self { return true }
+            return false
+        }
+    }
 
     private func metricRow(indicator: IndicatorKind,
                             title: String,
@@ -978,6 +1166,11 @@ struct ProfitLossDetailView: View {
                     Capsule()
                         .fill(Color.gray1)
                         .frame(width: 12, height: 4)
+                case .dot(let color):
+                    Circle()
+                        .fill(color)
+                        .frame(width: 12, height: 12)
+                        .offset(y: -2)
                 }
             }
             .frame(width: 12, height: 24)

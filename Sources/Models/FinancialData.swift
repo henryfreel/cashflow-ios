@@ -40,6 +40,40 @@ struct ExpenseBreakdown {
     var misc:       Double { total - cogs - labor - rent - marketing - utilities }
 }
 
+// MARK: - Revenue Category
+//
+// Channels through which the boutique generates revenue.
+
+enum RevenueCategory: String, CaseIterable, Identifiable {
+    case squareCard = "Square Card Sales"
+    case online     = "Online Store"
+    case cash       = "Cash Sales"
+    case giftCard   = "Gift Cards"
+
+    var id: String { rawValue }
+}
+
+// MARK: - Revenue Breakdown
+//
+// Proportional breakdown of a total revenue figure across sales channels.
+// Proportions are held constant across periods; actuals will replace these
+// once transaction-level data is available.
+//
+//   Square Card Sales  68%  – in-store card payments via Square terminals
+//   Online Store       18%  – e-commerce orders
+//   Cash Sales         10%  – in-store cash transactions
+//   Gift Cards          4%  – gift card redemptions
+
+struct RevenueBreakdown {
+    let total: Double
+
+    var squareCard: Double { total * 0.68 }
+    var online:     Double { total * 0.18 }
+    var cash:       Double { total * 0.10 }
+    // Absorbs rounding so all channels sum to total exactly
+    var giftCard:   Double { total - squareCard - online - cash }
+}
+
 // MARK: - Transaction (stub – populated in a future release)
 //
 // Placeholder for transaction-level data. Fields are intentionally broad so the

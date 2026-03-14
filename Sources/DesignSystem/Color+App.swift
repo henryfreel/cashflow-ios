@@ -27,17 +27,17 @@ extension Color {
 /// Seven greens from the Figma color palette (darkest → lightest).
 ///
 /// Swatch reference:
-///   green1  #006414   darkest
-///   green2  #007828
-///   green3  #009933   primary text/icon, fills
+///   green1  #007828   darkest
+///   green2  #009933
+///   green3  #00B23B   primary text/icon, fills
 ///   green4  #33C162   medium fill
 ///   green5  #64D188   lighter fill
 ///   green6  #A1EFBB   very light tint
 ///   green7  #CCFFDD   background tint
 extension Color {
-    static let green1 = Color(red: 0/255, green: 100/255, blue: 20/255)    // #006414
-    static let green2 = Color(red: 0/255, green: 120/255, blue: 40/255)   // #007828
-    static let green3 = Color(red: 0/255, green: 153/255, blue: 51/255)   // #009933
+    static let green1 = Color(red: 0/255, green: 120/255, blue: 40/255)    // #007828
+    static let green2 = Color(red: 0/255, green: 153/255, blue: 51/255)   // #009933
+    static let green3 = Color(red: 0/255, green: 178/255, blue: 59/255)   // #00B23B
     static let green4 = Color(red: 51/255, green: 193/255, blue: 98/255)  // #33c162
     static let green5 = Color(red: 100/255, green: 209/255, blue: 136/255) // #64d188
     static let green6 = Color(red: 161/255, green: 239/255, blue: 187/255) // #a1efbb
