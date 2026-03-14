@@ -25,6 +25,7 @@ private struct NavigationBackGestureEnabler: UIViewControllerRepresentable {
 
 struct ProfitLossDetailView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppNavigationState.self) private var navState: AppNavigationState?
     @State private var isScrolled = false
     // Measured height of the metrics section while data is available.
     // Stored separately so metricsNoDataView can match it exactly, preventing
@@ -402,7 +403,7 @@ struct ProfitLossDetailView: View {
         case "Month":
             return "\(Self.monthNames[selectedMonth - 1]), \(selectedYear)"
         default: // "Year"
-            return "Jan 1 – Dec 31, \(selectedYear)"
+            return "Jan – Dec, \(selectedYear)"
         }
     }
 
@@ -485,6 +486,42 @@ struct ProfitLossDetailView: View {
         switch selectedPeriod {
         case "Month": return Self.monthNames[selectedMonth - 1]
         default:      return periodNavTitle
+        }
+    }
+
+    // MARK: Transaction context for TransactionsView
+
+    /// "All", "Revenue", or "Expenses" cashflow label for the filter chip.
+    private var transactionCashflow: String {
+        switch pageTitle {
+        case "Revenue":  return "Revenue"
+        case "Expenses": return "Expenses"
+        default:         return "All"
+        }
+    }
+
+    /// Raw transactions for the current period, filtered to the page context.
+    private var transactionsForPeriod: [Transaction] {
+        let raw: [Transaction]
+        switch selectedPeriod {
+        case "Month":
+            raw = AppFinancials.sampleTransactions(year: selectedYear, month: selectedMonth)
+        case "Quarter":
+            raw = AppFinancials.sampleTransactions(year: selectedYear, quarter: selectedQuarter)
+        default: // "Year"
+            raw = AppFinancials.sampleTransactions(year: selectedYear)
+        }
+
+        switch pageTitle {
+        case "Revenue":
+            return raw.filter { $0.isRevenue }
+        case "Expenses":
+            let catName = selectedCategoryName
+            return raw.filter {
+                !$0.isRevenue && (catName.isEmpty || $0.expenseCategory == catName)
+            }
+        default: // P&L — show everything
+            return raw
         }
     }
 
@@ -665,8 +702,7 @@ struct ProfitLossDetailView: View {
                 text: fmt(heroValue),
                 value: heroValue,
                 font: .display15,
-                color: Color.gray1,
-                letterSpacing: -1.2
+                color: Color.gray1
             )
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
@@ -1218,6 +1254,16 @@ struct ProfitLossDetailView: View {
 
     // MARK: Chart — active bar tracks selected month; chart itself never slides
 
+    /// Determines bar rendering mode based on the current page context.
+    /// Revenue/Expenses pages use single-axis charts; P&L uses the default net-profit layout.
+    private var chartMode: PLYearBarChart.ChartMode {
+        switch pageTitle {
+        case "Revenue":  return .revenueOnly(selectedCategoryProportion)
+        case "Expenses": return .expensesOnly(selectedCategoryProportion)
+        default:         return .netProfit
+        }
+    }
+
     private var chartSection: some View {
         PLYearBarChart(
             entries: currentEntries,
@@ -1239,7 +1285,8 @@ struct ProfitLossDetailView: View {
                     scrubIndex = nil
                 }
             },
-            viewportHPadding: 24
+            viewportHPadding: 24,
+            mode: chartMode
         )
     }
 
@@ -1247,7 +1294,15 @@ struct ProfitLossDetailView: View {
 
     private var viewAllButton: some View {
         let enabled = hasDataForPeriod
-        return Button(action: {}) {
+        return Button {
+            guard enabled else { return }
+            navState?.txFilter = TxFilter(
+                periodLabel: periodNavTitle,
+                cashflow:    transactionCashflow,
+                category:    showRevenueExpensesCard ? nil : selectedCategoryName
+            )
+            navState?.selectedTab = .transactions
+        } label: {
             Text(enabled ? "View \(viewAllRangeLabel) transactions" : "No transactions available")
                 .font(.paragraphSemibold30)
                 .foregroundStyle(enabled ? Color.blue3 : Color.gray4)

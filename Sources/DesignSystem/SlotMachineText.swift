@@ -48,7 +48,6 @@ struct SlotMachineText: View {
                         Text(String(ch))
                             .font(font)
                             .foregroundStyle(color)
-                            .monospacedDigit()
                             // When canAnimate: changing `.id` triggers remove/insert transitions.
                             // Otherwise: stable id keeps the text updating in place.
                             .id(canAnimate ? AnyHashable(ch) : AnyHashable("s\(idx)"))
@@ -83,7 +82,6 @@ struct SlotMachineText: View {
                     Text(String(ch))
                         .font(font)
                         .foregroundStyle(color)
-                        .monospacedDigit()
                         .padding(.trailing, letterSpacing)
                 }
             }

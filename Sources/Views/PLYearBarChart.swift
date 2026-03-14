@@ -19,6 +19,20 @@ import SwiftUI
 // reference line appears behind the active bar; a tooltip floats above it.
 
 struct PLYearBarChart: View {
+
+    // MARK: Chart rendering mode
+
+    enum ChartMode: Equatable {
+        /// Standard P&L: revenue bars up, expense bars down, net-profit overlay.
+        case netProfit
+        /// Revenue-only: single bars growing from zero at the bottom.
+        /// `proportion` is the selected-category share of total revenue (0–1).
+        case revenueOnly(Double)
+        /// Expenses-only: single bars growing from zero at the top.
+        /// `proportion` is the selected-category share of total expenses (0–1).
+        case expensesOnly(Double)
+    }
+
     let entries: [BarChartEntry]
     let activeIndex: Int
 
@@ -30,6 +44,9 @@ struct PLYearBarChart: View {
     /// Horizontal padding the parent applies on each side of this chart.
     /// The tooltip overlay expands into this region so it can reach the screen edge.
     var viewportHPadding: CGFloat = 0
+
+    /// Rendering mode — controls bar direction, scale, and y-axis labels.
+    var mode: ChartMode = .netProfit
 
     private let barAreaH:     CGFloat = 160
     private let zeroY:        CGFloat = 80
@@ -43,8 +60,16 @@ struct PLYearBarChart: View {
     @State private var tooltipWidth: CGFloat = 60
 
     private var scale: Double {
-        max(entries.map(\.revenue).max() ?? 1,
-            entries.map(\.expenses).max() ?? 1)
+        switch mode {
+        case .netProfit:
+            return max(1,
+                       max(entries.map(\.revenue).max() ?? 1,
+                           entries.map(\.expenses).max() ?? 1))
+        case .revenueOnly:
+            return max(1, entries.map(\.revenue).max() ?? 1)
+        case .expensesOnly:
+            return max(1, entries.map(\.expenses).max() ?? 1)
+        }
     }
 
     private func axisLabel(_ v: Double) -> String {
@@ -208,13 +233,34 @@ struct PLYearBarChart: View {
 
     private var yAxisEntries: [YAxisEntry] {
         let s = scale
-        return [
-            YAxisEntry(id: 0, y: 0,   label: axisLabel(s)),
-            YAxisEntry(id: 1, y: 40,  label: axisLabel(s / 2)),
-            YAxisEntry(id: 2, y: 80,  label: "0"),
-            YAxisEntry(id: 3, y: 120, label: "-\(axisLabel(s / 2))"),
-            YAxisEntry(id: 4, y: 160, label: "-\(axisLabel(s))")
-        ]
+        switch mode {
+        case .netProfit:
+            return [
+                YAxisEntry(id: 0, y: 0,   label: axisLabel(s)),
+                YAxisEntry(id: 1, y: 40,  label: axisLabel(s / 2)),
+                YAxisEntry(id: 2, y: 80,  label: "0"),
+                YAxisEntry(id: 3, y: 120, label: "-\(axisLabel(s / 2))"),
+                YAxisEntry(id: 4, y: 160, label: "-\(axisLabel(s))")
+            ]
+        case .revenueOnly:
+            // Zero at bottom; tallest bar reaches the top.
+            return [
+                YAxisEntry(id: 0, y: 0,   label: axisLabel(s)),
+                YAxisEntry(id: 1, y: 40,  label: axisLabel(s * 0.75)),
+                YAxisEntry(id: 2, y: 80,  label: axisLabel(s / 2)),
+                YAxisEntry(id: 3, y: 120, label: axisLabel(s * 0.25)),
+                YAxisEntry(id: 4, y: 160, label: "0")
+            ]
+        case .expensesOnly:
+            // Zero at top; tallest bar reaches the bottom.
+            return [
+                YAxisEntry(id: 0, y: 0,   label: "0"),
+                YAxisEntry(id: 1, y: 40,  label: axisLabel(s * 0.25)),
+                YAxisEntry(id: 2, y: 80,  label: axisLabel(s / 2)),
+                YAxisEntry(id: 3, y: 120, label: axisLabel(s * 0.75)),
+                YAxisEntry(id: 4, y: 160, label: axisLabel(s))
+            ]
+        }
     }
 
     private var yAxisView: some View {
@@ -280,13 +326,33 @@ struct PLYearBarChart: View {
         .frame(height: 10)
     }
 
-    // MARK: Bar column
+    // MARK: Bar column (dispatcher)
 
     @ViewBuilder
     private func barColumn(_ m: BarChartEntry,
                             isActive: Bool,
                             isScrubbing: Bool,
                             isActiveScrub: Bool) -> some View {
+        switch mode {
+        case .netProfit:
+            netProfitBarColumn(m, isActive: isActive,
+                               isScrubbing: isScrubbing, isActiveScrub: isActiveScrub)
+        case .revenueOnly(let prop):
+            revenueOnlyBarColumn(m, proportion: prop,
+                                 isScrubbing: isScrubbing, isActiveScrub: isActiveScrub)
+        case .expensesOnly(let prop):
+            expensesOnlyBarColumn(m, proportion: prop,
+                                  isScrubbing: isScrubbing, isActiveScrub: isActiveScrub)
+        }
+    }
+
+    // MARK: Net-profit bar column (P&L page — unchanged behaviour)
+
+    @ViewBuilder
+    private func netProfitBarColumn(_ m: BarChartEntry,
+                                    isActive: Bool,
+                                    isScrubbing: Bool,
+                                    isActiveScrub: Bool) -> some View {
         let s      = scale
         let revH   = CGFloat(m.revenue  / s) * zeroY
         let expH   = CGFloat(m.expenses / s) * zeroY
@@ -295,7 +361,6 @@ struct PLYearBarChart: View {
         let isPos  = net >= 0
 
         // While scrubbing, non-active bars switch to neutral grays.
-        // Active (hovered) bar keeps its full green/red palette.
         let dimmed = isScrubbing && !isActiveScrub
         let revLight: Color = dimmed ? .gray7  : .green7
         let revDark:  Color = dimmed ? .gray5  : .green3
@@ -328,6 +393,88 @@ struct PLYearBarChart: View {
                     .offset(y: lineY - 1)
             }
         }
+    }
+
+    // MARK: Revenue-only bar column (Revenue detail page)
+    //
+    // Zero is at the bottom. Full bar = total revenue for the period.
+    // The dark (lower) portion represents the selected donut category's share.
+
+    @ViewBuilder
+    private func revenueOnlyBarColumn(_ m: BarChartEntry,
+                                      proportion: Double,
+                                      isScrubbing: Bool,
+                                      isActiveScrub: Bool) -> some View {
+        let s      = scale
+        let revH   = CGFloat(m.revenue / s) * barAreaH
+        let prop   = CGFloat(max(0, min(1, proportion)))
+        let catH   = revH * prop
+
+        let dimmed: Bool      = isScrubbing && !isActiveScrub
+        let lightColor: Color = dimmed ? .gray7 : .green7
+        let darkColor:  Color = dimmed ? .gray5 : .green3
+
+        Group {
+            if revH > 0 && m.hasData {
+                VStack(spacing: 0) {
+                    // Upper portion — non-category (light)
+                    barSegment(color: lightColor, height: max(0, revH - catH), isCurrent: m.isCurrent)
+                    // Lower portion — selected category (dark)
+                    barSegment(color: darkColor,  height: catH,                isCurrent: m.isCurrent)
+                }
+                .frame(maxWidth: .infinity)
+                .clipShape(UnevenRoundedRectangle(
+                    topLeadingRadius: 4, bottomLeadingRadius: 0,
+                    bottomTrailingRadius: 0, topTrailingRadius: 4
+                ))
+                // Align bar content to the bottom so it grows upward from zero.
+                .frame(height: barAreaH, alignment: .bottom)
+            } else {
+                Color.clear.frame(height: barAreaH)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: Expenses-only bar column (Expenses detail page)
+    //
+    // Zero is at the top. Full bar = total expenses for the period.
+    // The dark (upper) portion represents the selected donut category's share.
+
+    @ViewBuilder
+    private func expensesOnlyBarColumn(_ m: BarChartEntry,
+                                       proportion: Double,
+                                       isScrubbing: Bool,
+                                       isActiveScrub: Bool) -> some View {
+        let s      = scale
+        let expH   = CGFloat(m.expenses / s) * barAreaH
+        let prop   = CGFloat(max(0, min(1, proportion)))
+        let catH   = expH * prop
+
+        let dimmed: Bool      = isScrubbing && !isActiveScrub
+        let lightColor: Color = dimmed ? .gray7 : .red7
+        let darkColor:  Color = dimmed ? .gray5 : .red3
+
+        Group {
+            if expH > 0 && m.hasData {
+                VStack(spacing: 0) {
+                    // Upper portion — selected category (dark), touching zero at the top
+                    barSegment(color: darkColor,  height: catH,                isCurrent: m.isCurrent)
+                    // Lower portion — non-category (light)
+                    barSegment(color: lightColor, height: max(0, expH - catH), isCurrent: m.isCurrent)
+                }
+                .frame(maxWidth: .infinity)
+                .clipShape(UnevenRoundedRectangle(
+                    topLeadingRadius: 0, bottomLeadingRadius: 4,
+                    bottomTrailingRadius: 4, topTrailingRadius: 0
+                ))
+                // Align bar content to the top so it grows downward from zero.
+                .frame(height: barAreaH, alignment: .top)
+            } else {
+                Color.clear.frame(height: barAreaH)
+            }
+        }
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: Revenue bar (top half, top-rounded)
@@ -380,18 +527,12 @@ struct PLYearBarChart: View {
         }
     }
 
-    // MARK: Bar segment — solid or hatched
+    // MARK: Bar segment
 
-    /// Single rectangular segment of a bar. When `isCurrent` is true the segment
-    /// renders as diagonal hatching (2 pt white lines at 45°, 2 pt gap) over the fill color.
     @ViewBuilder
     private func barSegment(color: Color, height: CGFloat, isCurrent: Bool) -> some View {
         if height > 0 {
-            if isCurrent {
-                DiagonalHatch(color: color).frame(height: height)
-            } else {
-                Rectangle().fill(color).frame(height: height)
-            }
+            Rectangle().fill(color).frame(height: height)
         }
     }
 }
@@ -478,30 +619,6 @@ struct PLChartScrubOverlay: UIViewRepresentable {
     }
 }
 
-// MARK: - Diagonal hatch fill
-
-/// A view that fills its frame with `color` overlaid with 2 pt white diagonal
-/// lines at 45 ° and a 2 pt gap — used to indicate the current / partial period.
-private struct DiagonalHatch: View {
-    let color: Color
-
-    var body: some View {
-        Canvas { ctx, size in
-            // Perpendicular pitch = 2 pt line + 2 pt gap = 4 pt
-            // Horizontal spacing between line origins = 4 × √2 ≈ 5.66 pt
-            let pitch: CGFloat = 4 * 2.squareRoot()
-            var x: CGFloat = -size.height
-            while x < size.width + size.height {
-                var p = Path()
-                p.move(to:    CGPoint(x: x,              y: size.height))
-                p.addLine(to: CGPoint(x: x + size.height, y: 0))
-                ctx.stroke(p, with: .color(.white), lineWidth: 2)
-                x += pitch
-            }
-        }
-        .background(color)
-    }
-}
 
 #if DEBUG
 #Preview("PLYearBarChart – Year") {

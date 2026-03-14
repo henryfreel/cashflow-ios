@@ -1,30 +1,65 @@
 import SwiftUI
 
+// MARK: - App-level navigation state
+
+/// Filter context passed from a detail page to the Transactions tab.
+struct TxFilter {
+    var periodLabel: String = ""
+    var cashflow: String = "All"
+    var category: String? = nil
+    var location: String? = nil
+}
+
+/// Shared observable object used to drive tab selection and populate the
+/// Transactions tab's filters from anywhere in the navigation hierarchy.
+@Observable
+final class AppNavigationState {
+    var selectedTab: Tab = .home
+    var txFilter: TxFilter = TxFilter()
+}
+
+// MARK: -
+
 enum Tab {
-    case home, transfer, analytics, more
+    case home, transactions, analytics, more
 }
 
 struct ContentView: View {
-    @State private var selectedTab: Tab = .home
     @State private var showBalance = false
     @State private var showProfitLossDetail = false
+    @State private var navState = AppNavigationState()
 
     var body: some View {
         tabContent
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                BottomTabBar(selectedTab: $selectedTab, onHomeTap: {
-                    showProfitLossDetail = false
-                })
-            }
-            .onChange(of: selectedTab) { _, newTab in
-                if newTab != .home { showBalance = false }
+                BottomTabBar(selectedTab: navState.selectedTab) { tapped in
+                    if tapped == .home { showProfitLossDetail = false }
+                    if tapped != .home { showBalance = false }
+                    navState.selectedTab = tapped
+                }
             }
     }
 
     @ViewBuilder
     private var tabContent: some View {
-        NavigationStack {
-            HomeView(showBalance: $showBalance, showProfitLossDetail: $showProfitLossDetail)
+        switch navState.selectedTab {
+        case .home:
+            NavigationStack {
+                HomeView(showBalance: $showBalance,
+                         showProfitLossDetail: $showProfitLossDetail)
+            }
+            .environment(navState)
+        case .transactions:
+            NavigationStack {
+                TransactionsView(
+                    periodLabel: navState.txFilter.periodLabel,
+                    cashflow:    navState.txFilter.cashflow,
+                    category:    navState.txFilter.category,
+                    location:    navState.txFilter.location
+                )
+            }
+        case .analytics, .more:
+            Color.white // placeholder
         }
     }
 }
@@ -112,32 +147,29 @@ struct TopNavigationBar: View {
 // Top border: 1px gray5 (matches nav bar bottom separator). Top padding: 13pt. Tab height: 48pt.
 // Active color: #006AFF. Inactive: gray1.
 private struct BottomTabBar: View {
-    @Binding var selectedTab: Tab
-    let onHomeTap: () -> Void
+    let selectedTab: Tab
+    let onTap: (Tab) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
-            // 1px top border
             Rectangle()
                 .fill(Color.gray5)
                 .frame(height: 1)
 
-            // Tabs row: 13pt top padding, 48pt tall tabs
             HStack(spacing: 0) {
-                TabItem(icon: "TabHome", label: "Home", isSelected: selectedTab == .home) {
-                    onHomeTap()
-                    selectedTab = .home
-                }
-                TabItem(icon: "TabTransfer", label: "Transfer", isSelected: false) {}
+                TabItem(icon: "TabHome", label: "Home",
+                        isSelected: selectedTab == .home) { onTap(.home) }
+                TabItem(icon: "TabTransfer", label: "Transactions",
+                        isSelected: selectedTab == .transactions) { onTap(.transactions) }
+                TabItem(icon: "TabAnalytics", label: "Analytics",
+                        isSelected: false) {}
                     .allowsHitTesting(false)
-                TabItem(icon: "TabAnalytics", label: "Analytics", isSelected: false) {}
-                    .allowsHitTesting(false)
-                TabItem(icon: "TabMore", label: "More", isSelected: false) {}
+                TabItem(icon: "TabMore", label: "More",
+                        isSelected: false) {}
                     .allowsHitTesting(false)
             }
             .padding(.top, 13)
         }
-        // Extend white background behind the home indicator
         .background(Color.white.ignoresSafeArea(edges: .bottom))
     }
 }
@@ -202,7 +234,7 @@ private struct JewelMark: View {
         VStack(spacing: 0) {
             Rectangle().fill(Color.gray5).frame(height: 1)
             HStack(spacing: 0) {
-                ForEach(["Home", "Transfer", "Analytics", "More"], id: \.self) { label in
+                ForEach(["Home", "Transactions", "Analytics", "More"], id: \.self) { label in
                     Text(label)
                         .font(.caption)
                         .foregroundStyle(label == "Home" ? Color.blue3 : Color.gray1)

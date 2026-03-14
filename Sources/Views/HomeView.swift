@@ -314,7 +314,7 @@ private struct ProfitLossCard: View {
             onScrubChanged: { x in
                 let idx = barIndex(at: x)
                 if activeBarIndex != idx {
-                    activeBarIndex = idx
+                    withAnimation(.easeOut(duration: 0.12)) { activeBarIndex = idx }
                     UISelectionFeedbackGenerator().selectionChanged()
                 }
             },
@@ -969,13 +969,11 @@ private struct ProfitLossCard: View {
             if isNegative {
                     UnevenRoundedRectangle(bottomLeadingRadius: 4, bottomTrailingRadius: 4)
                         .fill(fillColor)
-                        .overlay { if bar.isCurrentWeek { DiagonalStripes() } }
                         .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 4, bottomTrailingRadius: 4))
                         .frame(height: absH)
                 } else {
                     UnevenRoundedRectangle(topLeadingRadius: 4, topTrailingRadius: 4)
                         .fill(fillColor)
-                        .overlay { if bar.isCurrentWeek { DiagonalStripes() } }
                         .clipShape(UnevenRoundedRectangle(topLeadingRadius: 4, topTrailingRadius: 4))
                         .frame(height: absH)
                 }
@@ -1018,13 +1016,11 @@ private struct ProfitLossCard: View {
                 if isNegative {
                     UnevenRoundedRectangle(bottomLeadingRadius: 4, bottomTrailingRadius: 4)
                         .fill(fillColor)
-                        .overlay { if bar.isCurrentMonth { DiagonalStripes() } }
                         .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 4, bottomTrailingRadius: 4))
                         .frame(height: abs)
                 } else {
                     UnevenRoundedRectangle(topLeadingRadius: 4, topTrailingRadius: 4)
                         .fill(fillColor)
-                        .overlay { if bar.isCurrentMonth { DiagonalStripes() } }
                         .clipShape(UnevenRoundedRectangle(topLeadingRadius: 4, topTrailingRadius: 4))
                         .frame(height: abs)
                 }
@@ -1069,13 +1065,11 @@ private struct ProfitLossCard: View {
                         if isNegative {
                             UnevenRoundedRectangle(bottomLeadingRadius: 2, bottomTrailingRadius: 2)
                                 .fill(fillColor)
-                                .overlay { if bar.isToday { DiagonalStripes() } }
                                 .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 2, bottomTrailingRadius: 2))
                                 .frame(width: barWidth, height: absH)
                         } else {
                             UnevenRoundedRectangle(topLeadingRadius: 2, topTrailingRadius: 2)
                                 .fill(fillColor)
-                                .overlay { if bar.isToday { DiagonalStripes() } }
                                 .clipShape(UnevenRoundedRectangle(topLeadingRadius: 2, topTrailingRadius: 2))
                                 .frame(width: barWidth, height: absH)
                         }
@@ -1091,25 +1085,6 @@ private struct ProfitLossCard: View {
     }
 }
 
-// MARK: - Diagonal stripe overlay (current / partial period)
-
-/// White 45° diagonal lines at 2 pt width / 2 pt gap.
-/// Apply as an `.overlay` then `.clipShape(...)` to hatch any bar shape.
-private struct DiagonalStripes: View {
-    var body: some View {
-        Canvas { ctx, size in
-            let pitch: CGFloat = 4 * 2.squareRoot()
-            var x: CGFloat = -size.height
-            while x < size.width + size.height {
-                var p = Path()
-                p.move(to:    CGPoint(x: x,               y: size.height))
-                p.addLine(to: CGPoint(x: x + size.height, y: 0))
-                ctx.stroke(p, with: .color(.white), lineWidth: 2)
-                x += pitch
-            }
-        }
-    }
-}
 
 // MARK: - Bar Scrub Tooltip
 
@@ -1300,7 +1275,7 @@ private struct BadgePill: View {
             .foregroundStyle(Color.blue3)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(Color.blue7)
+            .background(Color.blue8)
             .clipShape(Capsule())
     }
 }

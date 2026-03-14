@@ -74,20 +74,223 @@ struct RevenueBreakdown {
     var giftCard:   Double { total - squareCard - online - cash }
 }
 
-// MARK: - Transaction (stub – populated in a future release)
-//
-// Placeholder for transaction-level data. Fields are intentionally broad so the
-// model can accommodate both revenue events and itemised expense receipts once
-// the data pipeline is in place.
+// MARK: - Transaction
+
+enum TransactionType: Equatable {
+    case purchase
+    case cardPayment
+    /// Multiple card payments grouped together. `count` = number of individual payments.
+    case cardPaymentGroup(count: Int)
+    case bankTransfer
+    case internalTransfer
+}
 
 struct Transaction: Identifiable {
     let id: UUID
     let date: Date
-    let amount: Double          // positive = revenue, negative = expense
-    let category: ExpenseCategory?  // nil for revenue transactions
-    let description: String
-    let locationId: Int         // which store (0-based)
-    let isReconciled: Bool
+    /// Positive = revenue inflow; negative = expense outflow.
+    let amount: Double
+    let merchantName: String
+    /// Left-side secondary label: category name, date label, or descriptor.
+    let subtitle: String
+    /// Location associated with this transaction (e.g. "Hayes Valley").
+    /// Set for account-level transfers, payroll, and card sales.
+    /// Nil for company-wide or online purchases where no single location applies.
+    let locationName: String?
+    /// Masked card/account identifier shown as right-side subtitle for
+    /// card-purchase transactions (e.g. "Visa ••••7832", "Square Card ••4812").
+    /// Nil for account-level and sales transactions (which show locationName instead).
+    let cardInfo: String?
+    let type: TransactionType
+    /// Matches `ExpenseCategory.rawValue`; nil for revenue transactions.
+    let expenseCategory: String?
+    let isRevenue: Bool
+}
+
+// MARK: - Sample transaction generator
+
+extension AppFinancials {
+
+    private static let locations = ["Hayes Valley", "Bernal Heights", "The Mission"]
+
+    /// Returns a plausible set of sample transactions for the given year + month.
+    /// Revenue amounts use Square Card Sales proportions; expenses use the existing
+    /// `ExpenseBreakdown` split. All values are scaled to match the month's seed data.
+    static func sampleTransactions(year: Int, month: Int) -> [Transaction] {
+        let months = monthlyData(year: year)
+        guard month >= 1, month <= months.count else { return [] }
+        let mData   = months[month - 1]
+        let revTotal = mData.revenue
+        let expTotal = mData.expenses
+        let expB    = ExpenseBreakdown(total: expTotal)
+
+        // Build a deterministic but varied date within the month.
+        func day(_ offset: Int) -> Date {
+            var comps = DateComponents()
+            comps.year  = year
+            comps.month = month
+            comps.day   = max(1, min(offset, daysInMonth(year: year, month: month)))
+            return Calendar.current.date(from: comps) ?? Date()
+        }
+
+        var items: [Transaction] = []
+
+        // ── Revenue: card payments (Square Card Sales ≈ 68 % of revenue) ─────────
+        let cardSalesTotal = revTotal * 0.68
+        items.append(Transaction(
+            id: UUID(), date: day(2), amount: cardSalesTotal * 0.12,
+            merchantName: "Card payments (4)", subtitle: dateLabel(year: year, month: month, day: 2),
+            locationName: "Hayes Valley", cardInfo: nil, type: .cardPaymentGroup(count: 4),
+            expenseCategory: nil, isRevenue: true))
+        let cpAmounts: [(Int, Double)] = [(5, 0.08), (9, 0.06), (12, 0.10), (18, 0.07), (22, 0.09), (26, 0.08)]
+        for (d, frac) in cpAmounts {
+            items.append(Transaction(
+                id: UUID(), date: day(d), amount: cardSalesTotal * frac,
+                merchantName: "Card payment", subtitle: dateLabel(year: year, month: month, day: d),
+                locationName: locations[d % 3], cardInfo: nil, type: .cardPayment,
+                expenseCategory: nil, isRevenue: true))
+        }
+
+        // ── Revenue: internal location transfers (remaining 32 %) ─────────────────
+        // Merchant name is the originating location; locationName is intentionally nil
+        // so the right-side subtitle doesn't duplicate the title.
+        let otherRev = revTotal * 0.32
+        items.append(Transaction(
+            id: UUID(), date: day(15), amount: otherRev * 0.6,
+            merchantName: "The Mission", subtitle: dateLabel(year: year, month: month, day: 15),
+            locationName: nil, cardInfo: nil, type: .internalTransfer,
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(
+            id: UUID(), date: day(28), amount: otherRev * 0.4,
+            merchantName: "Bernal Heights", subtitle: dateLabel(year: year, month: month, day: 28),
+            locationName: nil, cardInfo: nil, type: .internalTransfer,
+            expenseCategory: nil, isRevenue: true))
+
+        // ── Expenses: COGS — card purchases ───────────────────────────────────────
+        items.append(Transaction(
+            id: UUID(), date: day(3), amount: -expB.cogs * 0.55,
+            merchantName: "Restaurant Supply", subtitle: ExpenseCategory.cogs.rawValue,
+            locationName: "Hayes Valley", cardInfo: "Square Card ••4812", type: .purchase,
+            expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
+        items.append(Transaction(
+            id: UUID(), date: day(17), amount: -expB.cogs * 0.30,
+            merchantName: "Whole Foods", subtitle: ExpenseCategory.cogs.rawValue,
+            locationName: "Bernal Heights", cardInfo: "Visa ••••7832", type: .purchase,
+            expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
+        items.append(Transaction(
+            id: UUID(), date: day(24), amount: -expB.cogs * 0.15,
+            merchantName: "Home Depot", subtitle: ExpenseCategory.cogs.rawValue,
+            locationName: "The Mission", cardInfo: "Amex ••5678", type: .purchase,
+            expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
+
+        // ── Expenses: Labor — Square Payroll (account-level, per location) ─────────
+        // Two payroll runs per month; each split across all three locations.
+        let payrollSplit: [(Double, String)] = [
+            (0.40, "Hayes Valley"),
+            (0.35, "Bernal Heights"),
+            (0.25, "The Mission")
+        ]
+        for (frac, loc) in payrollSplit {
+            items.append(Transaction(
+                id: UUID(), date: day(1), amount: -expB.labor * frac * 0.5,
+                merchantName: "Square Payroll", subtitle: ExpenseCategory.labor.rawValue,
+                locationName: loc, cardInfo: nil, type: .purchase,
+                expenseCategory: ExpenseCategory.labor.rawValue, isRevenue: false))
+            items.append(Transaction(
+                id: UUID(), date: day(16), amount: -expB.labor * frac * 0.5,
+                merchantName: "Square Payroll", subtitle: ExpenseCategory.labor.rawValue,
+                locationName: loc, cardInfo: nil, type: .purchase,
+                expenseCategory: ExpenseCategory.labor.rawValue, isRevenue: false))
+        }
+
+        // ── Expenses: Rent — ACH per location (no card) ───────────────────────────
+        items.append(Transaction(
+            id: UUID(), date: day(1), amount: -expB.rent * 0.45,
+            merchantName: "Landlord LLC", subtitle: ExpenseCategory.rent.rawValue,
+            locationName: "Hayes Valley", cardInfo: nil, type: .purchase,
+            expenseCategory: ExpenseCategory.rent.rawValue, isRevenue: false))
+        items.append(Transaction(
+            id: UUID(), date: day(1), amount: -expB.rent * 0.35,
+            merchantName: "Landlord LLC", subtitle: ExpenseCategory.rent.rawValue,
+            locationName: "Bernal Heights", cardInfo: nil, type: .purchase,
+            expenseCategory: ExpenseCategory.rent.rawValue, isRevenue: false))
+        items.append(Transaction(
+            id: UUID(), date: day(1), amount: -expB.rent * 0.20,
+            merchantName: "Landlord LLC", subtitle: ExpenseCategory.rent.rawValue,
+            locationName: "The Mission", cardInfo: nil, type: .purchase,
+            expenseCategory: ExpenseCategory.rent.rawValue, isRevenue: false))
+
+        // ── Expenses: Marketing — card purchases ───────────────────────────────────
+        items.append(Transaction(
+            id: UUID(), date: day(8), amount: -expB.marketing * 0.50,
+            merchantName: "Etsy", subtitle: ExpenseCategory.marketing.rawValue,
+            locationName: nil, cardInfo: "Visa ••••7832", type: .purchase,
+            expenseCategory: ExpenseCategory.marketing.rawValue, isRevenue: false))
+        items.append(Transaction(
+            id: UUID(), date: day(20), amount: -expB.marketing * 0.50,
+            merchantName: "Github", subtitle: ExpenseCategory.marketing.rawValue,
+            locationName: nil, cardInfo: "Square Card ••4812", type: .purchase,
+            expenseCategory: ExpenseCategory.marketing.rawValue, isRevenue: false))
+
+        // ── Expenses: Utilities — card purchases ───────────────────────────────────
+        items.append(Transaction(
+            id: UUID(), date: day(10), amount: -expB.utilities * 0.60,
+            merchantName: "Uline", subtitle: ExpenseCategory.utilities.rawValue,
+            locationName: nil, cardInfo: "Square Card ••4812", type: .purchase,
+            expenseCategory: ExpenseCategory.utilities.rawValue, isRevenue: false))
+        items.append(Transaction(
+            id: UUID(), date: day(21), amount: -expB.utilities * 0.40,
+            merchantName: "Amazon", subtitle: ExpenseCategory.utilities.rawValue,
+            locationName: nil, cardInfo: "Visa ••••7832", type: .purchase,
+            expenseCategory: ExpenseCategory.utilities.rawValue, isRevenue: false))
+
+        // ── Expenses: Misc — card purchases ────────────────────────────────────────
+        items.append(Transaction(
+            id: UUID(), date: day(14), amount: -expB.misc * 0.50,
+            merchantName: "Airtable", subtitle: ExpenseCategory.misc.rawValue,
+            locationName: nil, cardInfo: "Square Card ••4812", type: .purchase,
+            expenseCategory: ExpenseCategory.misc.rawValue, isRevenue: false))
+        items.append(Transaction(
+            id: UUID(), date: day(25), amount: -expB.misc * 0.50,
+            merchantName: "Sightglass", subtitle: ExpenseCategory.misc.rawValue,
+            locationName: nil, cardInfo: "Visa ••••7832", type: .purchase,
+            expenseCategory: ExpenseCategory.misc.rawValue, isRevenue: false))
+
+        // ── Outgoing bank transfer (external savings sweep) ────────────────────────
+        items.append(Transaction(
+            id: UUID(), date: day(30), amount: -(expTotal * 0.02),
+            merchantName: "Chase •234", subtitle: dateLabel(year: year, month: month, day: 30),
+            locationName: nil, cardInfo: nil, type: .bankTransfer,
+            expenseCategory: nil, isRevenue: false))
+
+        return items.sorted { $0.date < $1.date }
+    }
+
+    /// Human-readable date label used as a transaction subtitle ("Dec 15, 2024").
+    static func dateLabel(year: Int, month: Int, day: Int) -> String {
+        let abbrevs = ["Jan","Feb","Mar","Apr","May","Jun",
+                       "Jul","Aug","Sep","Oct","Nov","Dec"]
+        let m = abbrevs[max(0, min(11, month - 1))]
+        return "\(m) \(day), \(year)"
+    }
+
+    /// Transactions for a full quarter (all months in the quarter concatenated).
+    static func sampleTransactions(year: Int, quarter: Int) -> [Transaction] {
+        let startMonth = (quarter - 1) * 3 + 1
+        return (startMonth...(startMonth + 2)).flatMap {
+            sampleTransactions(year: year, month: $0)
+        }
+    }
+
+    /// Transactions for a full year.
+    static func sampleTransactions(year: Int) -> [Transaction] {
+        (1...12).flatMap { sampleTransactions(year: year, month: $0) }
+    }
+
+    /// All available transactions across every data year.
+    static var allTransactions: [Transaction] {
+        (minYear...currentYear).flatMap { sampleTransactions(year: $0) }
+    }
 }
 
 // MARK: - Generic Bar Chart Entry
