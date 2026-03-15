@@ -12,6 +12,7 @@
 		2B6A68F7CE308CB5780FAA93 /* TransactionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C84C4A8F711A507DECFDF18 /* TransactionsView.swift */; };
 		2BCF1AED307D405D9C19043D /* Font+App.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5496EB6947638555D66DB92 /* Font+App.swift */; };
 		2E7A2EB462DB55062F3CF2B3 /* SquareSansText-Bold.otf in Resources */ = {isa = PBXBuildFile; fileRef = 84FEEC42D87BFE813F5FB01C /* SquareSansText-Bold.otf */; };
+		30C6A7D34E60C66AA5BDD0D5 /* TxDatePickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE8F05D610B71E0509E298FE /* TxDatePickerSheet.swift */; };
 		39AC5B8E7217F56851BE4AD3 /* FinancialData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B25944740FD4301F20DDF253 /* FinancialData.swift */; };
 		5263090F9A50B13269E4C042 /* SquareSansDisplay-MediumCondensed.otf in Resources */ = {isa = PBXBuildFile; fileRef = A4785E30E6141298A7CD9494 /* SquareSansDisplay-MediumCondensed.otf */; };
 		54B2683CDDEEE3A63B241F62 /* SquareSansText-Regular.otf in Resources */ = {isa = PBXBuildFile; fileRef = D75E7118B3996645CC0BB200 /* SquareSansText-Regular.otf */; };
@@ -22,17 +23,19 @@
 		7B6EF6281F09F08FEFD33996 /* SquareSansDisplay-BoldCondensed.otf in Resources */ = {isa = PBXBuildFile; fileRef = F7355B151DE363A0DD494076 /* SquareSansDisplay-BoldCondensed.otf */; };
 		7CD6830C6B9A897417321512 /* ProfitLossDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2788F2A9454E91310E17B663 /* ProfitLossDetailView.swift */; };
 		8506BBD5F64C3343128A4BB6 /* SquareSansText-Medium.otf in Resources */ = {isa = PBXBuildFile; fileRef = 8A39108E1676068273E8FCF0 /* SquareSansText-Medium.otf */; };
+		8F5A8B7F0537204456F4190A /* CustomBottomSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34E754165E8D82B005257CCB /* CustomBottomSheet.swift */; };
 		8FFFDE13AE132346A9115E7F /* CashflowApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1413207BF0D392D94D54B356 /* CashflowApp.swift */; };
 		930C8C55E2CE119DAC2432AD /* SquareSansDisplay-RegularCondensed.otf in Resources */ = {isa = PBXBuildFile; fileRef = 31272160B79FC51BCBBCC4BB /* SquareSansDisplay-RegularCondensed.otf */; };
 		97FDB443D63DC9D9CE787F32 /* SquareSansDisplay-Medium.otf in Resources */ = {isa = PBXBuildFile; fileRef = CF43ED53012756AFF4739120 /* SquareSansDisplay-Medium.otf */; };
 		9B1084A317E29A33D9A40951 /* SquareSansText-SemiBoldItalic.otf in Resources */ = {isa = PBXBuildFile; fileRef = AC88640991B169E85610792C /* SquareSansText-SemiBoldItalic.otf */; };
 		A61F7A97825D8480ED6CBE75 /* TransactionComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C3DC3AD5F486B3E8DB24951 /* TransactionComponents.swift */; };
+		A89A00D7756910BD2AF37AD9 /* SheetCornerMask.swift in Sources */ = {isa = PBXBuildFile; fileRef = 007CC86120DA0E44EDC80C56 /* SheetCornerMask.swift */; };
 		AE65CBF87F94E5D0326EAF81 /* SquareSansDisplay-Bold.otf in Resources */ = {isa = PBXBuildFile; fileRef = ED237567398128888E470E36 /* SquareSansDisplay-Bold.otf */; };
 		AF50442063AAA6354656CC40 /* SecondaryNavBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C32B5807B99DFCDF3FF51C9 /* SecondaryNavBar.swift */; };
-		B1936F792F660C4D005D8174 /* cash-flow-icon.icon in Resources */ = {isa = PBXBuildFile; fileRef = B1936F782F660C4D005D8174 /* cash-flow-icon.icon */; };
 		B70FD9E3BE4080C0C3BB1C9C /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F2D32A0DAD842D2F22D7D3D /* HomeView.swift */; };
 		B935C52DBA720755D6C25662 /* SquareSansText-Italic.otf in Resources */ = {isa = PBXBuildFile; fileRef = 041DCC7D5CD749C7902A6E9B /* SquareSansText-Italic.otf */; };
 		BC36FFF436AB320B61E77188 /* SquareSansText-MediumItalic.otf in Resources */ = {isa = PBXBuildFile; fileRef = AACDB4A56F87F55B57342118 /* SquareSansText-MediumItalic.otf */; };
+		C2CE61DB4205746CCB1C9A77 /* cash-flow-icon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 75A5C75FA3D0E25849695634 /* cash-flow-icon.icon */; };
 		D139D08CF45116481C02B6CB /* TxFilterSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F06AA0388FA7E4DA51FB8556 /* TxFilterSheet.swift */; };
 		D22E87343C66D6A97F84FEBF /* SquareSansDisplay-RegularExpanded.otf in Resources */ = {isa = PBXBuildFile; fileRef = D512AE627C4BD3DA1E8F0D5C /* SquareSansDisplay-RegularExpanded.otf */; };
 		D3495C475F61D3403EA95130 /* SquareSansText-BoldItalic.otf in Resources */ = {isa = PBXBuildFile; fileRef = 713C43D08447454AAB989F7C /* SquareSansText-BoldItalic.otf */; };
@@ -55,18 +58,21 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		007CC86120DA0E44EDC80C56 /* SheetCornerMask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SheetCornerMask.swift; sourceTree = "<group>"; };
 		041DCC7D5CD749C7902A6E9B /* SquareSansText-Italic.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-Italic.otf"; sourceTree = "<group>"; };
 		0C480991E4DC78221B71199D /* SlotMachineText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SlotMachineText.swift; sourceTree = "<group>"; };
 		1413207BF0D392D94D54B356 /* CashflowApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CashflowApp.swift; sourceTree = "<group>"; };
 		2788F2A9454E91310E17B663 /* ProfitLossDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfitLossDetailView.swift; sourceTree = "<group>"; };
 		2C3DC3AD5F486B3E8DB24951 /* TransactionComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionComponents.swift; sourceTree = "<group>"; };
 		31272160B79FC51BCBBCC4BB /* SquareSansDisplay-RegularCondensed.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansDisplay-RegularCondensed.otf"; sourceTree = "<group>"; };
+		34E754165E8D82B005257CCB /* CustomBottomSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomBottomSheet.swift; sourceTree = "<group>"; };
 		420847885186BE125C7DE757 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5A5A8200AFB4DD3FA0BA42B4 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		5F2D32A0DAD842D2F22D7D3D /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		6451CE345E21878B3BF62B76 /* .gitkeep */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitkeep; sourceTree = "<group>"; };
 		646902238A230AEF1D0670DC /* SquareSansText-SemiBold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-SemiBold.otf"; sourceTree = "<group>"; };
 		713C43D08447454AAB989F7C /* SquareSansText-BoldItalic.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-BoldItalic.otf"; sourceTree = "<group>"; };
+		75A5C75FA3D0E25849695634 /* cash-flow-icon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = "cash-flow-icon.icon"; sourceTree = "<group>"; };
 		7C32B5807B99DFCDF3FF51C9 /* SecondaryNavBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecondaryNavBar.swift; sourceTree = "<group>"; };
 		7C84C4A8F711A507DECFDF18 /* TransactionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionsView.swift; sourceTree = "<group>"; };
 		84FEEC42D87BFE813F5FB01C /* SquareSansText-Bold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-Bold.otf"; sourceTree = "<group>"; };
@@ -78,7 +84,6 @@
 		AACDB4A56F87F55B57342118 /* SquareSansText-MediumItalic.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-MediumItalic.otf"; sourceTree = "<group>"; };
 		AC88640991B169E85610792C /* SquareSansText-SemiBoldItalic.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansText-SemiBoldItalic.otf"; sourceTree = "<group>"; };
 		B0D8E07766559610FB82018C /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
-		B1936F782F660C4D005D8174 /* cash-flow-icon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "cash-flow-icon.icon"; sourceTree = "<group>"; };
 		B25944740FD4301F20DDF253 /* FinancialData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinancialData.swift; sourceTree = "<group>"; };
 		B5496EB6947638555D66DB92 /* Font+App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Font+App.swift"; sourceTree = "<group>"; };
 		C212DD83AAC44A6BE9343C15 /* CashflowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CashflowTests.swift; sourceTree = "<group>"; };
@@ -94,6 +99,7 @@
 		F06AA0388FA7E4DA51FB8556 /* TxFilterSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TxFilterSheet.swift; sourceTree = "<group>"; };
 		F1533699A778E5E97919D8B9 /* PLYearBarChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PLYearBarChart.swift; sourceTree = "<group>"; };
 		F7355B151DE363A0DD494076 /* SquareSansDisplay-BoldCondensed.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SquareSansDisplay-BoldCondensed.otf"; sourceTree = "<group>"; };
+		FE8F05D610B71E0509E298FE /* TxDatePickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TxDatePickerSheet.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -152,8 +158,10 @@
 		923BD9DAF856516F47FE85AB /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				34E754165E8D82B005257CCB /* CustomBottomSheet.swift */,
 				9BB2F6A14A6E8C1E49D5E477 /* DonutChartView.swift */,
 				2C3DC3AD5F486B3E8DB24951 /* TransactionComponents.swift */,
+				FE8F05D610B71E0509E298FE /* TxDatePickerSheet.swift */,
 				F06AA0388FA7E4DA51FB8556 /* TxFilterSheet.swift */,
 			);
 			path = Components;
@@ -178,6 +186,7 @@
 			children = (
 				C9D4A3A21179C736C63E698F /* Color+App.swift */,
 				B5496EB6947638555D66DB92 /* Font+App.swift */,
+				007CC86120DA0E44EDC80C56 /* SheetCornerMask.swift */,
 				0C480991E4DC78221B71199D /* SlotMachineText.swift */,
 			);
 			path = DesignSystem;
@@ -195,8 +204,8 @@
 		DFE2A9FACD02F26D3E85BE61 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
-				B1936F782F660C4D005D8174 /* cash-flow-icon.icon */,
 				420847885186BE125C7DE757 /* Assets.xcassets */,
+				75A5C75FA3D0E25849695634 /* cash-flow-icon.icon */,
 				70486C5ED991821D1DBC7A27 /* App */,
 				BE19E019F3CC88A783F254EE /* DesignSystem */,
 				6ADC654CED96979C13717643 /* Fonts */,
@@ -300,7 +309,6 @@
 				97FDB443D63DC9D9CE787F32 /* SquareSansDisplay-Medium.otf in Resources */,
 				5263090F9A50B13269E4C042 /* SquareSansDisplay-MediumCondensed.otf in Resources */,
 				5F0CB668A4806313EAF902FE /* SquareSansDisplay-MediumExpanded.otf in Resources */,
-				B1936F792F660C4D005D8174 /* cash-flow-icon.icon in Resources */,
 				F356353BA176CA05998BCA48 /* SquareSansDisplay-Regular.otf in Resources */,
 				930C8C55E2CE119DAC2432AD /* SquareSansDisplay-RegularCondensed.otf in Resources */,
 				D22E87343C66D6A97F84FEBF /* SquareSansDisplay-RegularExpanded.otf in Resources */,
@@ -312,6 +320,7 @@
 				54B2683CDDEEE3A63B241F62 /* SquareSansText-Regular.otf in Resources */,
 				5CE421A79BE5C10C1171F84A /* SquareSansText-SemiBold.otf in Resources */,
 				9B1084A317E29A33D9A40951 /* SquareSansText-SemiBoldItalic.otf in Resources */,
+				C2CE61DB4205746CCB1C9A77 /* cash-flow-icon.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -325,6 +334,7 @@
 				8FFFDE13AE132346A9115E7F /* CashflowApp.swift in Sources */,
 				EF0A17800440D5A19655A42E /* Color+App.swift in Sources */,
 				07301E6B1ED916C8ED2C3832 /* ContentView.swift in Sources */,
+				8F5A8B7F0537204456F4190A /* CustomBottomSheet.swift in Sources */,
 				04872805656A05D671EB1A57 /* DonutChartView.swift in Sources */,
 				39AC5B8E7217F56851BE4AD3 /* FinancialData.swift in Sources */,
 				2BCF1AED307D405D9C19043D /* Font+App.swift in Sources */,
@@ -332,9 +342,11 @@
 				5BEEDC2B0D5A607F13AD3B85 /* PLYearBarChart.swift in Sources */,
 				7CD6830C6B9A897417321512 /* ProfitLossDetailView.swift in Sources */,
 				AF50442063AAA6354656CC40 /* SecondaryNavBar.swift in Sources */,
+				A89A00D7756910BD2AF37AD9 /* SheetCornerMask.swift in Sources */,
 				5F279B0EE1236DC026EC91C4 /* SlotMachineText.swift in Sources */,
 				A61F7A97825D8480ED6CBE75 /* TransactionComponents.swift in Sources */,
 				2B6A68F7CE308CB5780FAA93 /* TransactionsView.swift in Sources */,
+				30C6A7D34E60C66AA5BDD0D5 /* TxDatePickerSheet.swift in Sources */,
 				D139D08CF45116481C02B6CB /* TxFilterSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -514,7 +526,7 @@
 		9A9194FD850F022B2F3A5C52 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = "cash-flow-icon";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 2EXWMSS3AZ;
@@ -534,7 +546,7 @@
 		D668948B561D2D47C3AF264B /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = "cash-flow-icon";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 2EXWMSS3AZ;

@@ -57,13 +57,6 @@ struct TxFilterSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // ── Grabber (fixed, outside scroll) ──────────────────────────────
-            RoundedRectangle(cornerRadius: 2.5)
-                .fill(Color.gray4)
-                .frame(width: 36, height: 5)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-
             // ── Header (fixed, outside scroll) ───────────────────────────────
             HStack(spacing: 10) {
                 Text(filter.title)
@@ -126,7 +119,6 @@ struct TxFilterSheet: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .sheetCornerMask()
     }
 
     private func toggle(_ opt: TxFilterOption) {

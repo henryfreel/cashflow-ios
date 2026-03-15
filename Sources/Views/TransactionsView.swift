@@ -15,12 +15,11 @@ struct TransactionsView: View {
     @State private var selectedCategories: Set<String> = []
     @State private var selectedLocations:  Set<String> = []
 
-    @State private var showDatePicker: Bool = false
-    @State private var activeFilter:   TxActiveFilter? = nil
-    @State private var visibleCount:   Int  = 15
-    @State private var isScrolled:     Bool = false
+    @State private var visibleCount: Int  = 15
+    @State private var isScrolled:   Bool = false
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppNavigationState.self) private var navState
 
     // MARK: Init
 
@@ -209,27 +208,51 @@ struct TransactionsView: View {
 
     // MARK: Sheet helpers
 
-    @ViewBuilder
-    private func filterSheetContent(for filter: TxActiveFilter) -> some View {
-        let binding = selectedBinding(for: filter)
-        TxFilterSheet(
-            filter:      filter,
-            options:     options(for: filter),
-            initialKeys: binding.wrappedValue,
-            onCommit:    { newKeys in binding.wrappedValue = newKeys },
-            onDone:      { activeFilter = nil }
-        )
-        .presentationDetents([.height(sheetHeight(for: filter)), .large])
-        .presentationDragIndicator(.hidden)
-        .presentationBackground(Color.white)
-    }
-
-    // MARK: Sheet height (for non-date filters)
-
     private func sheetHeight(for filter: TxActiveFilter) -> CGFloat {
         let rowCount = options(for: filter).count
         let full = CGFloat(29 + 48 + 16 + 56 * (1 + rowCount) + 32)
         return min(full, UIScreen.main.bounds.height * 0.60)
+    }
+
+    /// Builds the filter sheet content and relays it to `navState`
+    /// so ContentView can present it above the tab bar.
+    private func presentFilterSheet(_ filter: TxActiveFilter) {
+        let binding = selectedBinding(for: filter)
+        navState.txFilterSheetContent = AnyView(
+            TxFilterSheet(
+                filter:      filter,
+                options:     options(for: filter),
+                initialKeys: binding.wrappedValue,
+                onCommit:    { newKeys in binding.wrappedValue = newKeys },
+                onDone:      { navState.txFilterSheetPresented = false }
+            )
+        )
+        navState.txFilterSheetHeight    = sheetHeight(for: filter)
+        navState.txFilterSheetPresented = true
+    }
+
+    /// Stores date-picker parameters on navState so ContentView can render
+    /// TxDatePickerSheet directly as a concrete type (avoiding AnyView identity loss).
+    private func presentDatePicker() {
+        // Replicate TxDatePickerSheet.init's month-clamping so we can compute
+        // the correct sheet height before the sheet is even created.
+        let cal      = Calendar.current
+        let appMax   = cal.date(from: DateComponents(year: 2024, month: 12, day: 1))!
+        let rawRef   = selectedStartDate ?? appMax
+        let rawMonth = cal.date(from: cal.dateComponents([.year, .month], from: rawRef))!
+        let initialMonth = rawMonth > appMax ? appMax : rawMonth
+
+        navState.txDatePickerInitialStart = selectedStartDate
+        navState.txDatePickerInitialEnd   = selectedEndDate
+        navState.txDatePickerOnCommit     = { [navState] start, end in
+            selectedStartDate = start
+            selectedEndDate   = end
+            visibleCount      = 15
+            _ = navState  // capture to silence warning
+        }
+        navState.txDatePickerOnDone   = { navState.txDatePickerPresented = false }
+        navState.txDatePickerHeight   = TxDatePickerSheet.compactHeight(for: initialMonth)
+        navState.txDatePickerPresented = true
     }
 
     // MARK: Body
@@ -253,10 +276,10 @@ struct TransactionsView: View {
                             selectedLocations  = []
                             visibleCount       = 15
                         },
-                        onTapLocation: { activeFilter = .location  },
-                        onTapDate:     { showDatePicker = true      },
-                        onTapCashflow: { activeFilter = .cashflow   },
-                        onTapCategory: { activeFilter = .category   }
+                        onTapLocation: { presentFilterSheet(.location) },
+                        onTapDate:     { presentDatePicker()            },
+                        onTapCashflow: { presentFilterSheet(.cashflow)  },
+                        onTapCategory: { presentFilterSheet(.category)  }
                     )
                     .padding(.top, 24)
                     .padding(.bottom, 24)
@@ -278,26 +301,6 @@ struct TransactionsView: View {
         }
         .navigationBarHidden(true)
         .background(Color.white)
-        // Non-date filter sheet
-        .sheet(item: $activeFilter) { filter in
-            filterSheetContent(for: filter)
-        }
-        // Date picker sheet
-        .sheet(isPresented: $showDatePicker) {
-            TxDatePickerSheet(
-                initialStart: selectedStartDate,
-                initialEnd:   selectedEndDate,
-                onCommit: { start, end in
-                    selectedStartDate = start
-                    selectedEndDate   = end
-                    visibleCount      = 15
-                },
-                onDone: { showDatePicker = false }
-            )
-            .presentationDetents([.height(TxDatePickerSheet.compactHeight), .large])
-            .presentationDragIndicator(.hidden)
-            .presentationBackground(Color.white)
-        }
         .onChange(of: selectedStartDate)  { _, _ in visibleCount = 15 }
         .onChange(of: selectedCashflows)  { _, _ in visibleCount = 15 }
         .onChange(of: selectedCategories) { _, _ in visibleCount = 15 }
@@ -328,7 +331,7 @@ private struct TxPagedList: View {
         let groups = txBuildGroups(from: slice)
         let lastID = groups.last?.items.last?.id
         let canLoad = visibleCount < allItems.count
-        VStack(spacing: 24) {
+        LazyVStack(spacing: 24, pinnedViews: []) {
             ForEach(groups) { g in
                 TxMonthSection(group: g, lastID: lastID, hasMore: canLoad,
                                showLocation: showLocation) {
@@ -344,13 +347,45 @@ private struct TxPagedList: View {
 // MARK: - Preview
 
 #if DEBUG
-struct TransactionsView_Previews: PreviewProvider {
-    static var previews: some View {
+/// Preview wrapper that mirrors the ContentView sheet-hosting layer so that
+/// filter chips work correctly in canvas without needing the full app shell.
+private struct TransactionsPreviewHost: View {
+    @State private var navState = AppNavigationState()
+
+    var body: some View {
         TransactionsView(
             periodLabel: "December 2024",
             cashflow: "All",
             category: nil
         )
+        .environment(navState)
+        .customBottomSheet(
+            isPresented:   $navState.txFilterSheetPresented,
+            compactHeight: navState.txFilterSheetHeight
+        ) {
+            navState.txFilterSheetContent
+        }
+        .customBottomSheet(
+            isPresented:   $navState.txDatePickerPresented,
+            compactHeight: navState.txDatePickerHeight
+        ) {
+            if let onCommit = navState.txDatePickerOnCommit,
+               let onDone   = navState.txDatePickerOnDone {
+                TxDatePickerSheet(
+                    initialStart:   navState.txDatePickerInitialStart,
+                    initialEnd:     navState.txDatePickerInitialEnd,
+                    onCommit:       onCommit,
+                    onDone:         onDone,
+                    onHeightChange: { navState.txDatePickerHeight = $0 }
+                )
+            }
+        }
+    }
+}
+
+struct TransactionsView_Previews: PreviewProvider {
+    static var previews: some View {
+        TransactionsPreviewHost()
     }
 }
 #endif

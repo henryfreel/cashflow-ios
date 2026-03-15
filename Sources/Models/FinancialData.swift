@@ -83,6 +83,8 @@ enum TransactionType: Equatable {
     case cardPaymentGroup(count: Int)
     case bankTransfer
     case internalTransfer
+    /// Recurring scheduled transfer — automated savings sweeps, loan payments, etc.
+    case automatedTransfer
 }
 
 struct Transaction: Identifiable {
@@ -98,13 +100,18 @@ struct Transaction: Identifiable {
     /// Nil for company-wide or online purchases where no single location applies.
     let locationName: String?
     /// Masked card/account identifier shown as right-side subtitle for
-    /// card-purchase transactions (e.g. "Visa ••••7832", "Square Card ••4812").
+    /// card-purchase transactions (e.g. "7832", "4812").
     /// Nil for account-level and sales transactions (which show locationName instead).
     let cardInfo: String?
     let type: TransactionType
     /// Matches `ExpenseCategory.rawValue`; nil for revenue transactions.
     let expenseCategory: String?
     let isRevenue: Bool
+    /// Brand accent color as a hex string (e.g. `"#FF6300"`).
+    /// Not displayed in the transaction list — reserved for the detail view.
+    /// For `.logoImage` avatars this matches the avatar background color.
+    /// For `.fullImage` avatars this is the brand's dominant color.
+    let accentHex: String? = nil
 }
 
 // MARK: - Sample transaction generator
@@ -136,28 +143,52 @@ extension AppFinancials {
         var items: [Transaction] = []
 
         // ── Revenue: card payments (Square Card Sales ≈ 68 % of revenue) ─────────
+        // Groups (dark bg) and singles (grey bg) are interleaved so no two card
+        // payment rows ever appear directly adjacent in the sorted list.
+        //   Groups: days  2, 9, 18, 27
+        //   Singles: days 5, 13, 23  ← each surrounded by expense transactions
         let cardSalesTotal = revTotal * 0.68
         items.append(Transaction(
-            id: UUID(), date: day(2), amount: cardSalesTotal * 0.12,
+            id: UUID(), date: day(2), amount: cardSalesTotal * 0.20,
             merchantName: "Card payments (4)", subtitle: dateLabel(year: year, month: month, day: 2),
             locationName: "Hayes Valley", cardInfo: nil, type: .cardPaymentGroup(count: 4),
             expenseCategory: nil, isRevenue: true))
-        let cpAmounts: [(Int, Double)] = [(5, 0.08), (9, 0.06), (12, 0.10), (18, 0.07), (22, 0.09), (26, 0.08)]
-        for (d, frac) in cpAmounts {
-            items.append(Transaction(
-                id: UUID(), date: day(d), amount: cardSalesTotal * frac,
-                merchantName: "Card payment", subtitle: dateLabel(year: year, month: month, day: d),
-                locationName: locations[d % 3], cardInfo: nil, type: .cardPayment,
-                expenseCategory: nil, isRevenue: true))
-        }
+        items.append(Transaction(
+            id: UUID(), date: day(5), amount: cardSalesTotal * 0.10,
+            merchantName: "Card payment", subtitle: dateLabel(year: year, month: month, day: 5),
+            locationName: locations[1], cardInfo: nil, type: .cardPayment,
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(
+            id: UUID(), date: day(9), amount: cardSalesTotal * 0.14,
+            merchantName: "Card payments (2)", subtitle: dateLabel(year: year, month: month, day: 9),
+            locationName: "The Mission", cardInfo: nil, type: .cardPaymentGroup(count: 2),
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(
+            id: UUID(), date: day(13), amount: cardSalesTotal * 0.12,
+            merchantName: "Card payment", subtitle: dateLabel(year: year, month: month, day: 13),
+            locationName: locations[0], cardInfo: nil, type: .cardPayment,
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(
+            id: UUID(), date: day(18), amount: cardSalesTotal * 0.18,
+            merchantName: "Card payments (3)", subtitle: dateLabel(year: year, month: month, day: 18),
+            locationName: "Bernal Heights", cardInfo: nil, type: .cardPaymentGroup(count: 3),
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(
+            id: UUID(), date: day(23), amount: cardSalesTotal * 0.12,
+            merchantName: "Card payment", subtitle: dateLabel(year: year, month: month, day: 23),
+            locationName: locations[2], cardInfo: nil, type: .cardPayment,
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(
+            id: UUID(), date: day(27), amount: cardSalesTotal * 0.14,
+            merchantName: "Card payments (2)", subtitle: dateLabel(year: year, month: month, day: 27),
+            locationName: "Hayes Valley", cardInfo: nil, type: .cardPaymentGroup(count: 2),
+            expenseCategory: nil, isRevenue: true))
 
         // ── Revenue: internal location transfers (remaining 32 %) ─────────────────
-        // Merchant name is the originating location; locationName is intentionally nil
-        // so the right-side subtitle doesn't duplicate the title.
         let otherRev = revTotal * 0.32
         items.append(Transaction(
-            id: UUID(), date: day(15), amount: otherRev * 0.6,
-            merchantName: "The Mission", subtitle: dateLabel(year: year, month: month, day: 15),
+            id: UUID(), date: day(16), amount: otherRev * 0.6,
+            merchantName: "The Mission", subtitle: dateLabel(year: year, month: month, day: 16),
             locationName: nil, cardInfo: nil, type: .internalTransfer,
             expenseCategory: nil, isRevenue: true))
         items.append(Transaction(
@@ -167,24 +198,35 @@ extension AppFinancials {
             expenseCategory: nil, isRevenue: true))
 
         // ── Expenses: COGS — card purchases ───────────────────────────────────────
+        // Spread across days that sit between card payment rows (days 2,5,9,13,18,23,27)
+        // so no expense transaction ever lands between two adjacent card payments.
         items.append(Transaction(
-            id: UUID(), date: day(3), amount: -expB.cogs * 0.55,
-            merchantName: "Restaurant Supply", subtitle: ExpenseCategory.cogs.rawValue,
-            locationName: "Hayes Valley", cardInfo: "Square Card ••4812", type: .purchase,
+            id: UUID(), date: day(3), amount: -expB.cogs * 0.48,
+            merchantName: "Tundra", subtitle: dateLabel(year: year, month: month, day: 3),
+            locationName: "Hayes Valley", cardInfo: "Square Card 4812", type: .purchase,
             expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
         items.append(Transaction(
-            id: UUID(), date: day(17), amount: -expB.cogs * 0.30,
-            merchantName: "Whole Foods", subtitle: ExpenseCategory.cogs.rawValue,
-            locationName: "Bernal Heights", cardInfo: "Visa ••••7832", type: .purchase,
+            id: UUID(), date: day(11), amount: -expB.cogs * 0.12,
+            merchantName: "UPS", subtitle: dateLabel(year: year, month: month, day: 11),
+            locationName: nil, cardInfo: "Visa 7832", type: .purchase,
             expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
         items.append(Transaction(
-            id: UUID(), date: day(24), amount: -expB.cogs * 0.15,
-            merchantName: "Home Depot", subtitle: ExpenseCategory.cogs.rawValue,
-            locationName: "The Mission", cardInfo: "Amex ••5678", type: .purchase,
+            id: UUID(), date: day(15), amount: -expB.cogs * 0.20,
+            merchantName: "Next Level Apparel", subtitle: dateLabel(year: year, month: month, day: 15),
+            locationName: nil, cardInfo: "Square Card 4812", type: .purchase,
+            expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
+        items.append(Transaction(
+            id: UUID(), date: day(20), amount: -expB.cogs * 0.12,
+            merchantName: "Whole Foods", subtitle: dateLabel(year: year, month: month, day: 20),
+            locationName: "Bernal Heights", cardInfo: "Visa 7832", type: .purchase,
+            expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
+        items.append(Transaction(
+            id: UUID(), date: day(25), amount: -expB.cogs * 0.08,
+            merchantName: "Home Depot", subtitle: dateLabel(year: year, month: month, day: 25),
+            locationName: "The Mission", cardInfo: "Amex 5678", type: .purchase,
             expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
 
         // ── Expenses: Labor — Square Payroll (account-level, per location) ─────────
-        // Two payroll runs per month; each split across all three locations.
         let payrollSplit: [(Double, String)] = [
             (0.40, "Hayes Valley"),
             (0.35, "Bernal Heights"),
@@ -193,12 +235,12 @@ extension AppFinancials {
         for (frac, loc) in payrollSplit {
             items.append(Transaction(
                 id: UUID(), date: day(1), amount: -expB.labor * frac * 0.5,
-                merchantName: "Square Payroll", subtitle: ExpenseCategory.labor.rawValue,
+                merchantName: "Square Payroll", subtitle: dateLabel(year: year, month: month, day: 1),
                 locationName: loc, cardInfo: nil, type: .purchase,
                 expenseCategory: ExpenseCategory.labor.rawValue, isRevenue: false))
             items.append(Transaction(
                 id: UUID(), date: day(16), amount: -expB.labor * frac * 0.5,
-                merchantName: "Square Payroll", subtitle: ExpenseCategory.labor.rawValue,
+                merchantName: "Square Payroll", subtitle: dateLabel(year: year, month: month, day: 16),
                 locationName: loc, cardInfo: nil, type: .purchase,
                 expenseCategory: ExpenseCategory.labor.rawValue, isRevenue: false))
         }
@@ -206,60 +248,75 @@ extension AppFinancials {
         // ── Expenses: Rent — ACH per location (no card) ───────────────────────────
         items.append(Transaction(
             id: UUID(), date: day(1), amount: -expB.rent * 0.45,
-            merchantName: "Landlord LLC", subtitle: ExpenseCategory.rent.rawValue,
+            merchantName: "Landlord LLC", subtitle: dateLabel(year: year, month: month, day: 1),
             locationName: "Hayes Valley", cardInfo: nil, type: .purchase,
             expenseCategory: ExpenseCategory.rent.rawValue, isRevenue: false))
         items.append(Transaction(
             id: UUID(), date: day(1), amount: -expB.rent * 0.35,
-            merchantName: "Landlord LLC", subtitle: ExpenseCategory.rent.rawValue,
+            merchantName: "Landlord LLC", subtitle: dateLabel(year: year, month: month, day: 1),
             locationName: "Bernal Heights", cardInfo: nil, type: .purchase,
             expenseCategory: ExpenseCategory.rent.rawValue, isRevenue: false))
         items.append(Transaction(
             id: UUID(), date: day(1), amount: -expB.rent * 0.20,
-            merchantName: "Landlord LLC", subtitle: ExpenseCategory.rent.rawValue,
+            merchantName: "Landlord LLC", subtitle: dateLabel(year: year, month: month, day: 1),
             locationName: "The Mission", cardInfo: nil, type: .purchase,
             expenseCategory: ExpenseCategory.rent.rawValue, isRevenue: false))
 
         // ── Expenses: Marketing — card purchases ───────────────────────────────────
         items.append(Transaction(
-            id: UUID(), date: day(8), amount: -expB.marketing * 0.50,
-            merchantName: "Etsy", subtitle: ExpenseCategory.marketing.rawValue,
-            locationName: nil, cardInfo: "Visa ••••7832", type: .purchase,
+            id: UUID(), date: day(10), amount: -expB.marketing * 0.50,
+            merchantName: "Etsy", subtitle: dateLabel(year: year, month: month, day: 10),
+            locationName: nil, cardInfo: "Visa 7832", type: .purchase,
             expenseCategory: ExpenseCategory.marketing.rawValue, isRevenue: false))
         items.append(Transaction(
-            id: UUID(), date: day(20), amount: -expB.marketing * 0.50,
-            merchantName: "Github", subtitle: ExpenseCategory.marketing.rawValue,
-            locationName: nil, cardInfo: "Square Card ••4812", type: .purchase,
+            id: UUID(), date: day(21), amount: -expB.marketing * 0.50,
+            merchantName: "Github", subtitle: dateLabel(year: year, month: month, day: 21),
+            locationName: nil, cardInfo: "Square Card 4812", type: .purchase,
             expenseCategory: ExpenseCategory.marketing.rawValue, isRevenue: false))
 
         // ── Expenses: Utilities — card purchases ───────────────────────────────────
         items.append(Transaction(
-            id: UUID(), date: day(10), amount: -expB.utilities * 0.60,
-            merchantName: "Uline", subtitle: ExpenseCategory.utilities.rawValue,
-            locationName: nil, cardInfo: "Square Card ••4812", type: .purchase,
+            id: UUID(), date: day(12), amount: -expB.utilities * 0.60,
+            merchantName: "Uline", subtitle: dateLabel(year: year, month: month, day: 12),
+            locationName: nil, cardInfo: "Square Card 4812", type: .purchase,
             expenseCategory: ExpenseCategory.utilities.rawValue, isRevenue: false))
         items.append(Transaction(
-            id: UUID(), date: day(21), amount: -expB.utilities * 0.40,
-            merchantName: "Amazon", subtitle: ExpenseCategory.utilities.rawValue,
-            locationName: nil, cardInfo: "Visa ••••7832", type: .purchase,
+            id: UUID(), date: day(22), amount: -expB.utilities * 0.40,
+            merchantName: "Amazon", subtitle: dateLabel(year: year, month: month, day: 22),
+            locationName: nil, cardInfo: "Visa 7832", type: .purchase,
             expenseCategory: ExpenseCategory.utilities.rawValue, isRevenue: false))
 
         // ── Expenses: Misc — card purchases ────────────────────────────────────────
         items.append(Transaction(
-            id: UUID(), date: day(14), amount: -expB.misc * 0.50,
-            merchantName: "Airtable", subtitle: ExpenseCategory.misc.rawValue,
-            locationName: nil, cardInfo: "Square Card ••4812", type: .purchase,
+            id: UUID(), date: day(6), amount: -expB.misc * 0.22,
+            merchantName: "Blue Bottle Coffee", subtitle: dateLabel(year: year, month: month, day: 6),
+            locationName: "Hayes Valley", cardInfo: "Square Card 4812", type: .purchase,
             expenseCategory: ExpenseCategory.misc.rawValue, isRevenue: false))
         items.append(Transaction(
-            id: UUID(), date: day(25), amount: -expB.misc * 0.50,
-            merchantName: "Sightglass", subtitle: ExpenseCategory.misc.rawValue,
-            locationName: nil, cardInfo: "Visa ••••7832", type: .purchase,
+            id: UUID(), date: day(14), amount: -expB.misc * 0.28,
+            merchantName: "Señor Sisig", subtitle: dateLabel(year: year, month: month, day: 14),
+            locationName: "Bernal Heights", cardInfo: "Visa 7832", type: .purchase,
+            expenseCategory: ExpenseCategory.misc.rawValue, isRevenue: false))
+        items.append(Transaction(
+            id: UUID(), date: day(19), amount: -expB.misc * 0.25,
+            merchantName: "Starbucks", subtitle: dateLabel(year: year, month: month, day: 19),
+            locationName: "Hayes Valley", cardInfo: "Square Card 4812", type: .purchase,
+            expenseCategory: ExpenseCategory.misc.rawValue, isRevenue: false))
+        items.append(Transaction(
+            id: UUID(), date: day(24), amount: -expB.misc * 0.25,
+            merchantName: "Airtable", subtitle: dateLabel(year: year, month: month, day: 24),
+            locationName: nil, cardInfo: "Square Card 4812", type: .purchase,
             expenseCategory: ExpenseCategory.misc.rawValue, isRevenue: false))
 
-        // ── Outgoing bank transfer (external savings sweep) ────────────────────────
+        // ── Automated transfers (savings sweep, loan payment) ─────────────────────
         items.append(Transaction(
             id: UUID(), date: day(30), amount: -(expTotal * 0.02),
-            merchantName: "Chase •234", subtitle: dateLabel(year: year, month: month, day: 30),
+            merchantName: "Savings Transfer", subtitle: dateLabel(year: year, month: month, day: 30),
+            locationName: nil, cardInfo: nil, type: .automatedTransfer,
+            expenseCategory: nil, isRevenue: false))
+        items.append(Transaction(
+            id: UUID(), date: day(15), amount: -(expTotal * 0.015),
+            merchantName: "BofA •1892", subtitle: dateLabel(year: year, month: month, day: 15),
             locationName: nil, cardInfo: nil, type: .bankTransfer,
             expenseCategory: nil, isRevenue: false))
 
@@ -288,9 +345,9 @@ extension AppFinancials {
     }
 
     /// All available transactions across every data year.
-    static var allTransactions: [Transaction] {
+    /// Stored as `let` so the full list is generated exactly once and reused.
+    static let allTransactions: [Transaction] =
         (minYear...currentYear).flatMap { sampleTransactions(year: $0) }
-    }
 }
 
 // MARK: - Generic Bar Chart Entry

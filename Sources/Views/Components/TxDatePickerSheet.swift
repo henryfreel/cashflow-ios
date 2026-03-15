@@ -3,10 +3,12 @@ import SwiftUI
 // MARK: - Date Picker Sheet
 
 struct TxDatePickerSheet: View {
-    let initialStart: Date?
-    let initialEnd:   Date?
-    let onCommit: (Date?, Date?) -> Void
-    let onDone:   () -> Void
+    let initialStart:    Date?
+    let initialEnd:      Date?
+    let onCommit:        (Date?, Date?) -> Void
+    let onDone:          () -> Void
+    /// Called whenever the displayed month changes so the host can resize the sheet.
+    var onHeightChange: ((CGFloat) -> Void)? = nil
 
     @State private var displayMonth: Date
     @State private var rangeStart:   Date?
@@ -28,11 +30,13 @@ struct TxDatePickerSheet: View {
 
     init(initialStart: Date?, initialEnd: Date?,
          onCommit: @escaping (Date?, Date?) -> Void,
-         onDone: @escaping () -> Void) {
-        self.initialStart = initialStart
-        self.initialEnd   = initialEnd
-        self.onCommit     = onCommit
-        self.onDone       = onDone
+         onDone: @escaping () -> Void,
+         onHeightChange: ((CGFloat) -> Void)? = nil) {
+        self.initialStart    = initialStart
+        self.initialEnd      = initialEnd
+        self.onCommit        = onCommit
+        self.onDone          = onDone
+        self.onHeightChange  = onHeightChange
         let c       = Calendar.current
         let appMax  = c.date(from: DateComponents(year: 2024, month: 12, day: 1))!
         let rawRef  = initialStart ?? appMax
@@ -92,11 +96,15 @@ struct TxDatePickerSheet: View {
 
             VStack(alignment: .leading, spacing: 23) {
                 monthNavRow
+                    // Suppress any inherited animation so the title snaps to the new
+                    // month label instantly — only the calendar grid should slide.
+                    .transaction { $0.animation = nil }
 
                 VStack(alignment: .leading, spacing: 16) {
                     dayOfWeekRow
                     weekRowsView
                 }
+                .clipped()
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 23)
@@ -105,7 +113,12 @@ struct TxDatePickerSheet: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.white)
-        .sheetCornerMask()
+        .onChange(of: displayMonth) { _, newMonth in
+            // Update height instantly (no animation) so the sheet's top edge doesn't
+            // slide and carry monthNavRow with it. The grid slide captures all
+            // the attention; the height snap is imperceptible.
+            onHeightChange?(TxDatePickerSheet.compactHeight(for: newMonth))
+        }
     }
 
     // MARK: - Header (persistent border)
@@ -132,7 +145,7 @@ struct TxDatePickerSheet: View {
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 24)
-        .padding(.vertical, 24)
+        .padding(.bottom, 24)
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(Color.gray5)
@@ -151,11 +164,12 @@ struct TxDatePickerSheet: View {
 
             HStack(spacing: 16) {
                 Button(action: prevMonth) {
-                    Image("YearNavLeft")
+                    Image("CalNavArrow")
                         .resizable()
                         .renderingMode(.template)
                         .scaledToFit()
-                        .frame(width: 24, height: 24)
+                        .frame(width: 16, height: 16)
+                        .rotationEffect(.degrees(-90))
                         .foregroundStyle(canGoPrev ? Color.gray1 : Color.gray4)
                         .padding(8)
                         .background(Color.gray6, in: Circle())
@@ -164,11 +178,12 @@ struct TxDatePickerSheet: View {
                 .disabled(!canGoPrev)
 
                 Button(action: nextMonth) {
-                    Image("YearNavRight")
+                    Image("CalNavArrow")
                         .resizable()
                         .renderingMode(.template)
                         .scaledToFit()
-                        .frame(width: 24, height: 24)
+                        .frame(width: 16, height: 16)
+                        .rotationEffect(.degrees(90))
                         .foregroundStyle(canGoNext ? Color.gray1 : Color.gray4)
                         .padding(8)
                         .background(Color.gray6, in: Circle())
@@ -344,19 +359,39 @@ struct CalendarDayCell: View {
     }
 }
 
-// MARK: - Height helper (used by TransactionsView)
+// MARK: - Height helpers (used by TransactionsView and month navigation)
 
 extension TxDatePickerSheet {
-    /// Fixed compact-detent height tall enough for any month (6-row grid).
+    /// Number of week rows needed to display `month`.
+    static func weekCount(for month: Date) -> Int {
+        let cal      = Calendar.current
+        let comps    = cal.dateComponents([.year, .month], from: month)
+        let firstDay = cal.date(from: comps)!
+        let dayCount = cal.range(of: .day, in: .month, for: firstDay)!.count
+        let offset   = (cal.component(.weekday, from: firstDay) - 1 + 7) % 7
+        return Int(ceil(Double(dayCount + offset) / 7.0))
+    }
+
+    /// Sheet height sized precisely for the given month's week count.
+    static func compactHeight(for month: Date) -> CGFloat {
+        let weeks: CGFloat         = CGFloat(weekCount(for: month))
+        let sheetTopInset: CGFloat = 24  // CustomBottomSheet .padding(.top, 24)
+        let header: CGFloat        = 72  // HStack(48) + .padding(.bottom, 24)
+        let calTopPad: CGFloat     = 23
+        let monthNav: CGFloat      = 40
+        let gap1: CGFloat          = 23
+        let dow: CGFloat           = 24
+        let gap2: CGFloat          = 16
+        let grid: CGFloat          = weeks * 40 + max(0, weeks - 1) * 8
+        let calBottomPad: CGFloat  = 23
+        let bottom: CGFloat        = 32
+        return sheetTopInset + header + calTopPad + monthNav + gap1 + dow + gap2 + grid + calBottomPad + bottom
+    }
+
+    /// Convenience: height for the app's default opening month (December 2024).
     static var compactHeight: CGFloat {
-        let header: CGFloat  = 97
-        let topPad: CGFloat  = 23
-        let monthNav: CGFloat = 40
-        let gap1: CGFloat    = 23
-        let dow: CGFloat     = 24
-        let gap2: CGFloat    = 16
-        let grid: CGFloat    = CGFloat(6 * 40 + 5 * 8)
-        let bottom: CGFloat  = 32
-        return header + topPad + monthNav + gap1 + dow + gap2 + grid + bottom
+        let dec2024 = Calendar.current.date(
+            from: DateComponents(year: 2024, month: 12, day: 1))!
+        return compactHeight(for: dec2024)
     }
 }

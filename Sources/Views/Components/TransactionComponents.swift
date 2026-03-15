@@ -217,7 +217,258 @@ struct TxRowMoney: View {
     }
 }
 
-// MARK: - Icon
+// MARK: - Avatar kind
+
+/// The four visual styles for a transaction avatar.
+/// Mirrors the four types defined in the Figma design system.
+enum TxAvatarKind {
+    /// Type 1 — translucent gray bg (`rgba(0,0,0,0.05)`), dark icon at ~24pt.
+    case grayIcon
+    /// Type 2 — solid brand-color bg, white icon/symbol at ~24pt.
+    case colorIcon
+    /// Type 3 — full-bleed brand photo filling the 40pt circle.
+    ///   `border` true when the photo has a light or white background.
+    ///   Brand accent hex stored on `Transaction.accentHex` for the detail view.
+    case fullImage(border: Bool)
+    /// Type 4 — 24pt brand logo centered on a solid bg color.
+    ///   `border` true when bg lacks contrast against the white row background.
+    ///   The bg color IS the accent hex (shown in avatar AND stored for detail view).
+    case logoImage(border: Bool)
+}
+
+// MARK: - Icon config
+
+struct TxIconConfig {
+    let kind: TxAvatarKind
+    let bg: Color
+    /// Icon, symbol, or placeholder view rendered inside the avatar circle.
+    /// For `.fullImage`: swap in `Image("asset").resizable().scaledToFill()` when photo is available.
+    /// For `.logoImage`: swap in `Image("logo").resizable().scaledToFit()` when logo asset is available.
+    let content: AnyView
+
+    var border: Bool {
+        switch kind {
+        case .fullImage(let b), .logoImage(let b): return b
+        default: return false
+        }
+    }
+
+    // MARK: Factory
+
+    static func make(for tx: Transaction) -> TxIconConfig {
+        switch tx.type {
+        case .cardPayment:
+            return TxIconConfig(
+                kind: .grayIcon,
+                bg: Color(red: 0.949, green: 0.949, blue: 0.949),
+                content: AnyView(
+                    Image("TxCardIcon")
+                        .resizable().renderingMode(.template)
+                        .scaledToFit()
+                        .frame(width: 20, height: 14)
+                        .foregroundStyle(Color.gray1)
+                ))
+        case .cardPaymentGroup:
+            return TxIconConfig(
+                kind: .colorIcon,
+                bg: Color.gray1,
+                content: AnyView(
+                    Image("TxCardIcon")
+                        .resizable().renderingMode(.template)
+                        .scaledToFit()
+                        .frame(width: 20, height: 14)
+                        .foregroundStyle(Color.white)
+                ))
+
+        case .internalTransfer:
+            let arrowContent: AnyView = tx.isRevenue
+                ? AnyView(
+                    Image("TxArrowLeft")
+                        .resizable().renderingMode(.template)
+                        .scaledToFit()
+                        .frame(width: 14, height: 14)
+                        .rotationEffect(.degrees(-45))
+                        .foregroundStyle(Color.gray1)
+                  )
+                : AnyView(
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.gray1)
+                  )
+            return TxIconConfig(
+                kind: .grayIcon,
+                bg: Color(white: 0, opacity: 0.05),
+                content: arrowContent)
+
+        case .automatedTransfer:
+            return TxIconConfig(
+                kind: .grayIcon,
+                bg: Color(white: 0, opacity: 0.05),
+                content: AnyView(
+                    Image("TxCycleIcon")
+                        .resizable().renderingMode(.template)
+                        .scaledToFit()
+                        .frame(width: 24, height: 24)
+                        .foregroundStyle(Color.gray1)
+                ))
+
+        case .bankTransfer:
+            return bankTransfer(name: tx.merchantName)
+
+        case .purchase:
+            return purchase(name: tx.merchantName)
+        }
+    }
+
+    // MARK: Per-type builders
+
+    private static func bankTransfer(name: String) -> TxIconConfig {
+        switch name {
+        case _ where name.hasPrefix("Chase"):
+            return TxIconConfig(
+                kind: .logoImage(border: false),
+                bg: Color(red: 0.067, green: 0.482, blue: 0.800),
+                content: AnyView(label("CH", .white)))
+        case _ where name.hasPrefix("Bank of America"), _ where name.hasPrefix("BofA"):
+            return TxIconConfig(
+                kind: .logoImage(border: true),
+                bg: Color.white,
+                content: AnyView(Image("txn-bank-of-america").resizable().scaledToFit()))
+        case _ where name.hasPrefix("Wells Fargo"):
+            return TxIconConfig(
+                kind: .logoImage(border: false),
+                bg: Color(red: 0.780, green: 0.082, blue: 0.086),
+                content: AnyView(label("WF", .white)))
+        default:
+            return TxIconConfig(
+                kind: .logoImage(border: true),
+                bg: Color.white,
+                content: AnyView(label(abbrev(name), Color.gray2)))
+        }
+    }
+
+    private static func purchase(name: String) -> TxIconConfig {
+        switch name {
+        case "Square Payroll":
+            return TxIconConfig(
+                kind: .colorIcon,
+                bg: Color(red: 0.325, green: 0.698, blue: 0.282),
+                content: AnyView(
+                    Image("TxPayrollIcon")
+                        .resizable().renderingMode(.template)
+                        .scaledToFit()
+                        .frame(width: 24, height: 24)
+                        .foregroundStyle(Color.white)
+                ))
+        case "Inventory":
+            return TxIconConfig(
+                kind: .grayIcon,
+                bg: Color(white: 0, opacity: 0.05),
+                content: AnyView(
+                    Image(systemName: "shippingbox.fill")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Color.gray1)
+                ))
+        case "Home Depot":
+            return TxIconConfig(
+                kind: .fullImage(border: false),
+                bg: Color(red: 1.0, green: 0.388, blue: 0.0),
+                content: AnyView(Image("txn-home-depot").resizable().scaledToFill()))
+        case "Whole Foods":
+            return TxIconConfig(
+                kind: .logoImage(border: false),
+                bg: Color(red: 0.0, green: 0.420, blue: 0.235),
+                content: AnyView(Image("txn-whole-foods").resizable().scaledToFit()))
+        case "Tundra":
+            return TxIconConfig(
+                kind: .logoImage(border: true),
+                bg: Color.white,
+                content: AnyView(Image("txn-tundra").resizable().scaledToFit()))
+        case "Next Level Apparel":
+            return TxIconConfig(
+                kind: .fullImage(border: false),
+                bg: Color.white,
+                content: AnyView(Image("txn-next-level-apparel").resizable().scaledToFill()))
+        case "Amazon":
+            return TxIconConfig(
+                kind: .logoImage(border: false),
+                bg: Color(red: 0.251, green: 0.129, blue: 0.122),  // #40211F
+                content: AnyView(Image("txn-amazon").resizable().scaledToFit()))
+        case "Etsy":
+            return TxIconConfig(
+                kind: .logoImage(border: false),
+                bg: Color(red: 0.875, green: 0.412, blue: 0.169),
+                content: AnyView(Image("txn-etsy").resizable().scaledToFit()))
+        case "Github":
+            return TxIconConfig(
+                kind: .logoImage(border: false),
+                bg: Color(red: 0.141, green: 0.161, blue: 0.180),
+                content: AnyView(label("GH", .white)))
+        case "Uline":
+            return TxIconConfig(
+                kind: .fullImage(border: false),
+                bg: Color.white,
+                content: AnyView(Image("txn-uline").resizable().scaledToFill()))
+        case "Airtable":
+            return TxIconConfig(
+                kind: .logoImage(border: true),
+                bg: Color.white,
+                content: AnyView(Image("txn-air-table").resizable().scaledToFit()))
+        case "UPS":
+            return TxIconConfig(
+                kind: .logoImage(border: false),
+                bg: Color(red: 0.251, green: 0.129, blue: 0.122),  // #40211F
+                content: AnyView(Image("txn-ups").resizable().scaledToFit()))
+        case "Zendesk":
+            return TxIconConfig(
+                kind: .logoImage(border: false),
+                bg: Color(red: 0.027, green: 0.565, blue: 0.859),
+                content: AnyView(label("ZD", .white)))
+        case "Landlord LLC":
+            return TxIconConfig(
+                kind: .logoImage(border: false),
+                bg: Color(red: 0.024, green: 0.118, blue: 0.165),
+                content: AnyView(Image("txn-rent").resizable().scaledToFit()))
+        case "Blue Bottle Coffee":
+            return TxIconConfig(
+                kind: .logoImage(border: false),
+                bg: Color(red: 0.969, green: 0.969, blue: 0.969),
+                content: AnyView(Image("txn-blue-bottle").resizable().scaledToFit()))
+        case "Señor Sisig":
+            return TxIconConfig(
+                kind: .logoImage(border: true),
+                bg: Color.white,
+                content: AnyView(Image("txn-senor-sisig").resizable().scaledToFit()))
+        case "Starbucks":
+            return TxIconConfig(
+                kind: .fullImage(border: false),
+                bg: Color(red: 0.0, green: 0.439, blue: 0.290),
+                content: AnyView(Image("txn-starbucks").resizable().scaledToFill()))
+        default:
+            return TxIconConfig(
+                kind: .grayIcon,
+                bg: Color(white: 0, opacity: 0.05),
+                content: AnyView(label(abbrev(name), Color.gray3)))
+        }
+    }
+
+    // MARK: Helpers
+
+    private static func abbrev(_ n: String) -> String {
+        let w = n.split(separator: " ")
+        return w.count >= 2
+            ? String(w[0].prefix(1) + w[1].prefix(1)).uppercased()
+            : String(n.prefix(2)).uppercased()
+    }
+
+    private static func label(_ text: String, _ color: Color) -> some View {
+        Text(text)
+            .font(.custom(AppFont.Text.semiBold, size: 13))
+            .foregroundStyle(color)
+    }
+}
+
+// MARK: - Icon view
 
 struct TxIcon: View {
     let transaction: Transaction
@@ -225,81 +476,34 @@ struct TxIcon: View {
         let cfg = TxIconConfig.make(for: transaction)
         ZStack {
             Circle().fill(cfg.bg)
-            if cfg.border { Circle().stroke(Color.gray1.opacity(0.10), lineWidth: 1) }
-            cfg.view
+            iconContent(cfg)
+            if cfg.border {
+                Circle().strokeBorder(Color.black.opacity(0.15), lineWidth: 1)
+            }
         }
         .frame(width: 40, height: 40)
-    }
-}
-
-struct TxIconConfig {
-    let bg: Color
-    let border: Bool
-    let view: AnyView
-
-    static func make(for tx: Transaction) -> TxIconConfig {
-        switch tx.type {
-        case .cardPayment, .cardPaymentGroup:
-            return icon(Color(white: 0.06), false,
-                AnyView(Image(systemName: "creditcard.fill")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Color.white)))
-        case .internalTransfer:
-            return icon(Color(red: 0.898, green: 0.941, blue: 1.0), false,
-                AnyView(Image(systemName: "arrow.up.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.blue3)))
-        case .bankTransfer:
-            let isChase = tx.merchantName.hasPrefix("Chase")
-            let bg: Color = isChase ? Color(red: 0, green: 0.329, blue: 0.667) : .white
-            let abbr = String((tx.merchantName.components(separatedBy: " ").first ?? "?").prefix(2)).uppercased()
-            return icon(bg, !isChase,
-                AnyView(Text(abbr)
-                    .font(.custom(AppFont.Text.semiBold, size: 13))
-                    .foregroundStyle(isChase ? Color.white : Color.gray1)))
-        case .purchase:
-            return purchase(tx.merchantName)
-        }
+        .clipShape(Circle())
     }
 
-    private static func icon(_ bg: Color, _ border: Bool, _ view: AnyView) -> TxIconConfig {
-        TxIconConfig(bg: bg, border: border, view: view)
-    }
-
-    private static func abbr(_ n: String) -> String {
-        let w = n.split(separator: " ")
-        return w.count >= 2
-            ? String(w[0].prefix(1) + w[1].prefix(1)).uppercased()
-            : String(n.prefix(2)).uppercased()
-    }
-
-    private static func purchase(_ name: String) -> TxIconConfig {
-        let white = Color.white
-        switch name {
-        case "Square Payroll":
-            return icon(Color(red: 0.325, green: 0.698, blue: 0.282), false,
-                AnyView(Image(systemName: "person.2.fill").font(.system(size: 12, weight: .medium)).foregroundStyle(white)))
-        case "Restaurant Supply":
-            return icon(Color(red: 0, green: 0.322, blue: 0.553), false,
-                AnyView(Image(systemName: "cart.fill").font(.system(size: 12, weight: .medium)).foregroundStyle(white)))
-        case "Home Depot":
-            return icon(Color(red: 1, green: 0.388, blue: 0), false,
-                AnyView(Text("HD").font(.custom(AppFont.Text.bold, size: 11)).foregroundStyle(white)))
-        case "Amazon":
-            return icon(Color(red: 1, green: 0.6, blue: 0), false,
-                AnyView(Text("a").font(.custom(AppFont.Text.bold, size: 17)).foregroundStyle(white)))
-        case "Etsy":
-            return icon(Color(red: 0.875, green: 0.412, blue: 0.169), false,
-                AnyView(Text("e").font(.custom(AppFont.Text.bold, size: 17)).foregroundStyle(white)))
-        case "Github", "Uline", "Airtable":
-            return icon(.white, true,
-                AnyView(Text(abbr(name)).font(.custom(AppFont.Text.semiBold, size: 13)).foregroundStyle(Color.gray2)))
-        case "Landlord LLC", "Whole Foods", "Sightglass":
-            return icon(Color(red: 0.024, green: 0.118, blue: 0.165), false,
-                AnyView(Text(abbr(name)).font(.custom(AppFont.Text.semiBold, size: 13)).foregroundStyle(white)))
-        default:
-            return icon(Color(white: 0, opacity: 0.05), false,
-                AnyView(Text(abbr(name)).font(.custom(AppFont.Text.semiBold, size: 13)).foregroundStyle(Color.gray3)))
+    @ViewBuilder
+    private func iconContent(_ cfg: TxIconConfig) -> some View {
+        switch cfg.kind {
+        case .fullImage(_):
+            // Full-bleed: fills the entire 40pt circle.
+            // When the brand photo asset is ready, replace cfg.content with:
+            //   Image("BrandPhoto").resizable().scaledToFill()
+            cfg.content
+                .frame(width: 40, height: 40)
+                .clipped()
+        case .logoImage(_):
+            // 24pt centered logo.
+            // When the brand logo asset is ready, replace cfg.content with:
+            //   Image("BrandLogo").resizable().scaledToFit()
+            cfg.content
+                .frame(width: 24, height: 24)
+                .clipped()
+        case .grayIcon, .colorIcon:
+            cfg.content
         }
     }
 }

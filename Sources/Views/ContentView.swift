@@ -16,6 +16,23 @@ struct TxFilter {
 final class AppNavigationState {
     var selectedTab: Tab = .home
     var txFilter: TxFilter = TxFilter()
+
+    // MARK: Sheet relay (set by TransactionsView, presented above the tab bar)
+
+    /// Non-date filter sheet
+    var txFilterSheetPresented: Bool = false
+    var txFilterSheetHeight: CGFloat = 300
+    var txFilterSheetContent: AnyView = AnyView(EmptyView())
+
+    /// Date-picker sheet — parameters stored directly so ContentView can render
+    /// TxDatePickerSheet as a concrete type (not AnyView), preserving its identity
+    /// when txDatePickerHeight changes during month navigation.
+    var txDatePickerPresented: Bool = false
+    var txDatePickerHeight: CGFloat = TxDatePickerSheet.compactHeight
+    var txDatePickerInitialStart: Date? = nil
+    var txDatePickerInitialEnd: Date? = nil
+    var txDatePickerOnCommit: ((Date?, Date?) -> Void)? = nil
+    var txDatePickerOnDone: (() -> Void)? = nil
 }
 
 // MARK: -
@@ -38,6 +55,31 @@ struct ContentView: View {
                     navState.selectedTab = tapped
                 }
             }
+            // Filter sheet — applied here, ABOVE the tab bar, so it covers it
+            .customBottomSheet(
+                isPresented:   $navState.txFilterSheetPresented,
+                compactHeight: navState.txFilterSheetHeight
+            ) {
+                navState.txFilterSheetContent
+            }
+            // Date-picker sheet — rendered as a concrete type (not AnyView) so that
+            // SwiftUI preserves TxDatePickerSheet's identity (and its @State) when
+            // txDatePickerHeight changes during month navigation.
+            .customBottomSheet(
+                isPresented:   $navState.txDatePickerPresented,
+                compactHeight: navState.txDatePickerHeight
+            ) {
+                if let onCommit = navState.txDatePickerOnCommit,
+                   let onDone   = navState.txDatePickerOnDone {
+                    TxDatePickerSheet(
+                        initialStart:   navState.txDatePickerInitialStart,
+                        initialEnd:     navState.txDatePickerInitialEnd,
+                        onCommit:       onCommit,
+                        onDone:         onDone,
+                        onHeightChange: { navState.txDatePickerHeight = $0 }
+                    )
+                }
+            }
     }
 
     @ViewBuilder
@@ -58,6 +100,7 @@ struct ContentView: View {
                     location:    navState.txFilter.location
                 )
             }
+            .environment(navState)
         case .analytics, .more:
             Color.white // placeholder
         }
