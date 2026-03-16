@@ -13,7 +13,18 @@ struct TransactionDetailView: View {
 
     init(transaction: Transaction) {
         self.transaction = transaction
-        _localCategory = State(initialValue: transaction.expenseCategory)
+        // Seed the local category so the picker opens with the right selection pre-highlighted.
+        // Card payments are pinned to Sales; transfer types default to Transfers if unset.
+        let initial: String?
+        switch transaction.type {
+        case .cardPayment, .cardPaymentGroup:
+            initial = ExpenseCategory.sales.rawValue
+        case .internalTransfer, .automatedTransfer, .bankTransfer:
+            initial = transaction.expenseCategory ?? ExpenseCategory.transfers.rawValue
+        default:
+            initial = transaction.expenseCategory
+        }
+        _localCategory = State(initialValue: initial)
     }
 
     // MARK: Derived properties
@@ -21,7 +32,7 @@ struct TransactionDetailView: View {
     private var iconConfig: TxIconConfig { TxIconConfig.make(for: transaction) }
 
     // Design tokens for the white-bg (light) header variant — from Figma.
-    private static let lightHeaderBand   = Color(white: 0.871)  // #DEDEDE
+    private static let lightHeaderBand   = Color.gray6
     private static let lightHeaderBtn    = Color(white: 0.698)  // #B2B2B2
 
     /// Header band color — light gray for icon/white-bg transactions, brand color otherwise.
@@ -120,16 +131,30 @@ struct TransactionDetailView: View {
         return result
     }
 
-    /// True for revenue transactions — category is always "Sales" and cannot be changed.
-    private var isCategoryDisabled: Bool { transaction.isRevenue }
+    /// True for internal transactions (card payments, automated/internal transfers).
+    /// These do not show the completion status card at the bottom.
+    private var isInternalTransaction: Bool {
+        switch transaction.type {
+        case .cardPayment, .cardPaymentGroup, .internalTransfer, .automatedTransfer:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Only card payments are locked to Sales and cannot be recategorised.
+    private var isCategoryDisabled: Bool {
+        switch transaction.type {
+        case .cardPayment, .cardPaymentGroup: return true
+        default: return false
+        }
+    }
 
     private var categoryName: String? {
-        if transaction.isRevenue { return ExpenseCategory.sales.rawValue }
-        return localCategory ?? transaction.expenseCategory
+        localCategory ?? transaction.expenseCategory
     }
 
     private var categoryAsset: String {
-        if transaction.isRevenue { return "CatSales" }
         guard let raw = localCategory ?? transaction.expenseCategory,
               let cat = ExpenseCategory(rawValue: raw) else { return "CatOfficeSupplies" }
         switch cat {
@@ -261,11 +286,24 @@ struct TransactionDetailView: View {
         case .purchase where transaction.merchantName == "Square Payroll":
             return transaction.locationName
         case .bankTransfer:
-            return transaction.merchantName
+            if let loc = transaction.locationName {
+                return transaction.isRevenue ? "To \(loc)" : "From \(loc)"
+            }
+            return nil
         case .automatedTransfer:
-            return transaction.merchantName
+            // Title = source account; subtitle = destination ("To X" for outgoing).
+            if let loc = transaction.locationName {
+                return transaction.amount < 0 ? "To \(loc)" : "From \(loc)"
+            }
+            return transaction.amount < 0 ? "To operating account" : "From savings"
         case .internalTransfer:
-            return transaction.locationName
+            // merchantName = destination account; locationName = source account.
+            // Transfer in (revenue): title = destination, subtitle = "From [source]".
+            // Transfer out:          title = source,      subtitle = "To [destination]".
+            if let loc = transaction.locationName {
+                return transaction.isRevenue ? "From \(loc)" : "To \(loc)"
+            }
+            return nil
         default:
             return transaction.locationName
         }
@@ -294,17 +332,24 @@ struct TransactionDetailView: View {
                 VStack(spacing: 0) {
                     headerSection(safeTop: geo.safeAreaInsets.top)
 
-                    // Middle — flexible, content centered
-                    Spacer(minLength: 0)
-                    middleSection
-                    Spacer(minLength: 0)
-                    Color.clear.frame(height: 40)
+                    // Fixed 56pt gap below the header address/subtitle line
+                    Color.clear.frame(height: 56)
 
-                    // Bottom card pinned with padding
-                    bottomCard
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, geo.safeAreaInsets.bottom)
+                    // Amount + date + category — anchored 56pt below header
+                    middleSection
+
+                    // Fill all remaining space so bottom card stays at screen bottom
+                    Spacer(minLength: 0)
+
+                    // Bottom card flush to the screen edge — hidden for internal transactions
+                    if !isInternalTransaction {
+                        bottomCard
+                            .padding(.horizontal, 16)
+                    } else {
+                        Color.clear.frame(height: 0)
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .ignoresSafeArea(edges: .top)
@@ -453,7 +498,6 @@ struct TransactionDetailView: View {
             }
         }
         .padding(.horizontal, 24)
-        .padding(.bottom, 40)
     }
 
     private func categoryPill(name: String, isDisabled: Bool = false) -> some View {
@@ -521,11 +565,7 @@ struct TxDetailIcon: View {
 
     private var cfg: TxIconConfig { TxIconConfig.make(for: transaction) }
 
-    /// Avatar background: white for grayIcon (overrides the translucent list color).
-    private var bgColor: Color {
-        if case .grayIcon = cfg.kind { return .white }
-        return cfg.bg
-    }
+    private var bgColor: Color { cfg.bg }
 
     var body: some View {
         ZStack {
@@ -554,64 +594,6 @@ struct TxDetailIcon: View {
             // Scale icon proportionally to 48pt at 100pt avatar size
             cfg.content
                 .scaleEffect(size / 50)
-        }
-    }
-}
-
-// MARK: - Sheet dimming overlay helper
-
-/// A zero-size UIViewRepresentable that, once in the sheet's view hierarchy,
-/// injects a full-screen black overlay into the presentation container so the
-/// dimming behind the sheet matches our custom bottom-sheet opacity of 0.75.
-struct SheetDimmingView: UIViewRepresentable {
-    func makeUIView(context: Context) -> UIView { DimmingProxyView() }
-    func updateUIView(_ uiView: UIView, context: Context) {}
-
-    private class DimmingProxyView: UIView {
-        private var dimOverlay: UIView?
-        /// The sheet's hosting view controller — used to synchronise the
-        /// fade-out with its dismiss transition coordinator.
-        private weak var hostVC: UIViewController?
-
-        override func didMoveToWindow() {
-            super.didMoveToWindow()
-            if window != nil {
-                DispatchQueue.main.async { [weak self] in self?.installOverlay() }
-            }
-        }
-
-        override func willMove(toWindow newWindow: UIWindow?) {
-            super.willMove(toWindow: newWindow)
-            guard newWindow == nil, let overlay = dimOverlay else { return }
-            // Fade the overlay out in lock-step with the sheet's dismiss animation.
-            if let coordinator = hostVC?.transitionCoordinator {
-                coordinator.animate(alongsideTransition: { _ in
-                    overlay.alpha = 0
-                }, completion: nil)
-            } else {
-                UIView.animate(withDuration: 0.35, delay: 0, options: .curveEaseIn) {
-                    overlay.alpha = 0
-                }
-            }
-        }
-
-        private func installOverlay() {
-            var responder: UIResponder? = self
-            while let next = responder?.next {
-                if let vc = next as? UIViewController,
-                   let container = vc.presentationController?.containerView,
-                   dimOverlay == nil {
-                    let overlay = UIView(frame: container.bounds)
-                    overlay.backgroundColor = UIColor.black.withAlphaComponent(0.75)
-                    overlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-                    overlay.isUserInteractionEnabled = false
-                    container.insertSubview(overlay, at: 0)
-                    dimOverlay = overlay
-                    hostVC = vc
-                    return
-                }
-                responder = next
-            }
         }
     }
 }
@@ -900,8 +882,28 @@ private extension Array {
 
 // MARK: - Preview
 
-#Preview {
+#Preview("Purchase") {
     let tx = AppFinancials.allTransactions.first(where: { $0.merchantName == "Starbucks" })
+        ?? AppFinancials.allTransactions[0]
+    TransactionDetailView(transaction: tx)
+}
+
+#Preview("Transfer Out") {
+    let tx = AppFinancials.allTransactions.first(where: { $0.merchantName == "General Savings" })
+        ?? AppFinancials.allTransactions[0]
+    TransactionDetailView(transaction: tx)
+}
+
+#Preview("Transfer In") {
+    let tx = AppFinancials.allTransactions.first(where: {
+        if case .internalTransfer = $0.type { return $0.isRevenue }
+        return false
+    }) ?? AppFinancials.allTransactions[0]
+    TransactionDetailView(transaction: tx)
+}
+
+#Preview("Bank Transfer") {
+    let tx = AppFinancials.allTransactions.first(where: { $0.type == .bankTransfer })
         ?? AppFinancials.allTransactions[0]
     TransactionDetailView(transaction: tx)
 }

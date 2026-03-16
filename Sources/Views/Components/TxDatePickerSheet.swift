@@ -7,6 +7,9 @@ struct TxDatePickerSheet: View {
     let initialEnd:      Date?
     let onCommit:        (Date?, Date?) -> Void
     let onDone:          () -> Void
+    /// When set, renders a back-button header (drill-down from All Filters).
+    /// Tapping back pops without committing.
+    var onBack:         (() -> Void)?        = nil
     /// Called whenever the displayed month changes so the host can resize the sheet.
     var onHeightChange: ((CGFloat) -> Void)? = nil
 
@@ -31,11 +34,13 @@ struct TxDatePickerSheet: View {
     init(initialStart: Date?, initialEnd: Date?,
          onCommit: @escaping (Date?, Date?) -> Void,
          onDone: @escaping () -> Void,
+         onBack: (() -> Void)? = nil,
          onHeightChange: ((CGFloat) -> Void)? = nil) {
         self.initialStart    = initialStart
         self.initialEnd      = initialEnd
         self.onCommit        = onCommit
         self.onDone          = onDone
+        self.onBack          = onBack
         self.onHeightChange  = onHeightChange
         let c       = Calendar.current
         let appMax  = c.date(from: DateComponents(year: 2024, month: 12, day: 1))!
@@ -92,7 +97,11 @@ struct TxDatePickerSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            headerView
+            if let onBack {
+                backButtonHeader(onBack: onBack)
+            } else {
+                headerView
+            }
 
             VStack(alignment: .leading, spacing: 23) {
                 monthNavRow
@@ -123,14 +132,59 @@ struct TxDatePickerSheet: View {
         }
     }
 
-    // MARK: - Header (persistent border)
+    // MARK: - Headers
 
+    /// Standard standalone header: left-aligned title + Done on the right.
     private var headerView: some View {
         HStack(spacing: 10) {
             Text("Date")
                 .font(.heading30)
                 .foregroundStyle(Color.gray1)
                 .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button {
+                onCommit(rangeStart, rangeEnd)
+                onDone()
+            } label: {
+                Text("Done")
+                    .font(.paragraphSemibold30)
+                    .foregroundStyle(Color.white)
+                    .frame(height: 48)
+                    .padding(.horizontal, 22)
+                    .background(Color.gray1)
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 24)
+        .padding(.bottom, 24)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.gray5)
+                .frame(height: 1)
+        }
+    }
+
+    /// Drill-down header (from All Filters): back button + centered title + Done.
+    /// Total height matches headerView (48pt HStack + 24pt bottom pad) so
+    /// compactHeight calculations remain accurate.
+    private func backButtonHeader(onBack: @escaping () -> Void) -> some View {
+        HStack(spacing: 0) {
+            Button(action: onBack) {
+                Image(systemName: "arrow.left")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.gray1)
+                    .frame(width: 24, height: 24)
+                    .padding(12)
+                    .background(Color.gray6)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+
+            Text("Date")
+                .font(.heading20)
+                .foregroundStyle(Color.black.opacity(0.9))
+                .frame(maxWidth: .infinity, alignment: .center)
 
             Button {
                 onCommit(rangeStart, rangeEnd)

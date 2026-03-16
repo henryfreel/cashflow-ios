@@ -34,6 +34,11 @@ final class AppNavigationState {
     var txDatePickerOnCommit: ((Date?, Date?) -> Void)? = nil
     var txDatePickerOnDone: (() -> Void)? = nil
 
+    /// All-filters summary sheet
+    var txAllFiltersSheetPresented: Bool = false
+    var txAllFiltersSheetContent: AnyView = AnyView(EmptyView())
+    var txAllFiltersSheetHeight: CGFloat = TxAllFiltersSheet.compactHeight
+
 }
 
 // MARK: -
@@ -49,6 +54,7 @@ struct ContentView: View {
 
     var body: some View {
         tabContent
+            .animation(nil, value: navState.selectedTab)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 BottomTabBar(selectedTab: navState.selectedTab) { tapped in
                     if tapped == .home { showProfitLossDetail = false }
@@ -83,6 +89,13 @@ struct ContentView: View {
                         onHeightChange: { navState.txDatePickerHeight = $0 }
                     )
                 }
+            }
+            // All-filters summary sheet — presented here, above the tab bar
+            .customBottomSheet(
+                isPresented:   $navState.txAllFiltersSheetPresented,
+                compactHeight: navState.txAllFiltersSheetHeight
+            ) {
+                navState.txAllFiltersSheetContent
             }
     }
 
@@ -124,11 +137,11 @@ struct TopNavigationBar: View {
         // Icons sit in the HStack edges; center content is a full-width overlay so it
         // is never constrained by the JewelMark's 24pt intrinsic width.
         HStack(spacing: 0) {
-            // Figma inset: ~14.5% each side → icon renders at 16.71×16.7 inside 24×24 container
             Image("NavSearch")
                 .resizable()
+                .renderingMode(.template)
                 .scaledToFit()
-                .frame(width: 16.71, height: 16.7)
+                .foregroundStyle(Color.gray1)
                 .frame(width: 24, height: 24)
 
             Spacer()
@@ -141,10 +154,21 @@ struct TopNavigationBar: View {
                     .frame(width: 16, height: 18)
                     .frame(width: 24, height: 24)
 
-                Circle()
-                    .fill(Color.red3)
-                    .frame(width: 6, height: 6)
-                    .offset(x: 2, y: -2)
+                // Figma badge: 14×14 blue circle, 2pt white border on the outside, "1" in 10pt semibold white
+                // Offset 4pt outside top-right corner of the 24×24 icon frame
+                ZStack {
+                    // White circle (2pt larger on each side) acts as the outside border
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 18, height: 18)
+                    Circle()
+                        .fill(Color.blue3)
+                        .frame(width: 14, height: 14)
+                    Text("1")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Color.white)
+                }
+                .offset(x: 4, y: -4)
             }
         }
         .padding(.horizontal, 24)
@@ -208,7 +232,7 @@ private struct BottomTabBar: View {
                         isSelected: selectedTab == .home) { onTap(.home) }
                 TabItem(icon: "TabTransfer", label: "Transactions",
                         isSelected: selectedTab == .transactions) { onTap(.transactions) }
-                TabItem(icon: "TabAnalytics", label: "Analytics",
+                TabItem(icon: "TabAnalytics", label: "Reports",
                         isSelected: false) {}
                     .allowsHitTesting(false)
                 TabItem(icon: "TabMore", label: "More",
@@ -248,6 +272,7 @@ private struct TabItem: View {
                     .frame(height: 16)
             }
             .foregroundStyle(color)
+            .animation(nil, value: isSelected)
             .frame(width: 94, height: 48)
         }
         .buttonStyle(.plain)

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - Month group model
 
@@ -63,12 +64,18 @@ struct TxFilterBar: View {
     // accidentally trigger the keyboard before the user taps.
     @State private var isPrewarming: Bool = false
 
+    // Dummy value animated on appear to pre-initialise SwiftUI's animation pipeline.
+    @State private var _swiftUIWarmup: Bool = false
+
     private var activeFilterCount: Int {
         (periodLabel.isEmpty ? 0 : 1)
         + (cashflow == "All" || cashflow.isEmpty ? 0 : 1)
         + (category != nil ? 1 : 0)
         + (location != nil ? 1 : 0)
     }
+
+    // Bar is visible whenever chip filters OR text search are active.
+    private var showCountRow: Bool { hasFilters || !searchText.isEmpty }
 
     // Estimated width of TxFilterCountButton: icon(8+24+8=40) or icon+badge(8+24+4+~8+10=54)
     private var filterButtonWidth: CGFloat { activeFilterCount > 0 ? 54 : 40 }
@@ -93,9 +100,12 @@ struct TxFilterBar: View {
                         .frame(width: isSearching ? expandedSearchWidth : 40, height: 40)
                         // Search icon: 40pt zone anchored to leading, never drifts.
                         .overlay(alignment: .leading) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 15, weight: .medium))
+                            Image("NavSearch")
+                                .resizable()
+                                .renderingMode(.template)
+                                .scaledToFit()
                                 .foregroundStyle(Color.gray1)
+                                .frame(width: 18, height: 18)
                                 .frame(width: 40, height: 40)
                                 .opacity(isSearching ? 0 : 1)
                                 .animation(nil, value: isSearching)
@@ -125,6 +135,7 @@ struct TxFilterBar: View {
                                     .tint(Color.gray1)
                                     .focused($isFocused)
                                     .frame(maxWidth: .infinity)
+                                    .contentShape(Rectangle())
                                     .overlay(alignment: .leading) {
                                         Text("Search all transactions")
                                             .font(.paragraph20)
@@ -135,19 +146,32 @@ struct TxFilterBar: View {
                                             .allowsHitTesting(false)
                                     }
                                     .allowsHitTesting(isSearching)
+                                    .onSubmit {
+                                        // Return key with empty field collapses back to chip
+                                        if searchText.isEmpty {
+                                            withAnimation(.easeInOut(duration: 0.25)) { isSearching = false }
+                                        }
+                                    }
 
                                 if !searchText.isEmpty {
-                                    Button { searchText = "" } label: {
+                                    Button {
+                                        searchText = ""
+                                        // If the field lost focus (keyboard hidden), bring it back
+                                        if !isFocused {
+                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                                                isFocused = true
+                                            }
+                                        }
+                                    } label: {
                                         Image("TxSearchClear")
                                             .renderingMode(.template)
                                             .resizable()
                                             .scaledToFit()
-                                            .foregroundColor(Color.gray4)
+                                            .foregroundStyle(Color.gray4)
                                             .frame(width: 13, height: 13)
                                             .frame(width: 24, height: 24)
                                     }
                                     .buttonStyle(.plain)
-                                    .tint(Color.gray4)
                                     .allowsHitTesting(isSearching)
                                     .transition(.scale(scale: 0.7).combined(with: .opacity))
                                 }
@@ -162,7 +186,11 @@ struct TxFilterBar: View {
                         .clipped()
                         .overlay {
                             RoundedRectangle(cornerRadius: 6)
-                                .strokeBorder(Color.gray1.opacity(0.15), lineWidth: 1)
+                                .strokeBorder(
+                                    isFocused ? Color.gray1 : Color.gray1.opacity(0.15),
+                                    lineWidth: 1
+                                )
+                                .animation(.easeInOut(duration: 0.2), value: isFocused)
                         }
                         .contentShape(Rectangle())
                         .onTapGesture {
@@ -211,55 +239,63 @@ struct TxFilterBar: View {
         .frame(height: 40)
 
         // ── Count + Clear row ──
-        // showCountRowLayout controls layout space; hasFilters controls opacity.
+        // showCountRowLayout controls layout space; showCountRow controls opacity.
+        // The row is visible whenever ANY filtering is active — chips or text search.
+        // The "Clear filters" button is only shown when chip-based filters are active
+        // so tapping it while there's still search text leaves the row visible.
         // On hide: opacity fades to 0 first (0.25s), then layout collapses (0.2s).
         // On show: layout expands immediately, then opacity fades in (0.25s).
         if showCountRowLayout {
             HStack(alignment: .center, spacing: 0) {
-                Text("\(frozenCount) transaction\(frozenCount == 1 ? "" : "s")")
-                    .font(Font.custom(AppFont.Display.bold, size: 24))
+                Text("\(frozenCount) result\(frozenCount == 1 ? "" : "s")")
+                    .font(.paragraph20)
                     .foregroundStyle(Color.gray1)
 
                 Spacer()
 
-                Button { onClear?() } label: {
-                    Text("Clear filters")
-                        .font(.paragraphSemibold20)
-                        .foregroundStyle(.white)
-                        .frame(height: 40)
-                        .padding(.horizontal, 12)
-                        .background(Color.gray1)
-                        .clipShape(Capsule())
+                if hasFilters {
+                    Button { onClear?() } label: {
+                        Text("Clear filters")
+                            .font(.paragraphSemibold20)
+                            .foregroundStyle(Color.blue3)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 5)
+                    }
+                    .buttonStyle(.plain)
+                    .frame(height: 32)
                 }
-                .buttonStyle(.plain)
             }
-            .frame(height: 40)
+            .frame(height: 32)
+            .padding(.leading, 16)
+            .padding(.trailing, 4)
+            .padding(.top, 4)
+            .padding(.bottom, 4)
+            .background(Color.gray7, in: RoundedRectangle(cornerRadius: 6))
             .padding(.horizontal, 24)
-            .padding(.top, 16)
-            .opacity(hasFilters ? 1 : 0)
-            .animation(.easeInOut(duration: 0.25), value: hasFilters)
+            .padding(.top, 12)
+            .opacity(showCountRow ? 1 : 0)
+            .animation(.easeInOut(duration: 0.25), value: showCountRow)
         }
 
         } // VStack
-        .onChange(of: hasFilters, initial: true) { _, newValue in
+        .padding(.bottom, showCountRowLayout ? 8 : 16)
+        .background(CAAnimationWarmer().frame(width: 0, height: 0))
+        .onChange(of: showCountRow, initial: true) { _, newValue in
             if newValue {
-                // Filters applied: sync count and expand layout immediately
+                // Either filters or search is active: sync count and expand layout immediately.
                 frozenCount = transactionCount
                 showCountRowLayout = true
             } else {
-                // Filters cleared: freeze the count at its current value so the
-                // number doesn't jump to the full total during the fade-out.
-                // Layout collapses only after the opacity animation finishes.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        showCountRowLayout = false
-                    }
+                // Collapse layout at the same time as the opacity fade so the list
+                // moves up in sync — no staggered delay.
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    showCountRowLayout = false
                 }
             }
         }
         .onChange(of: transactionCount) { _, newValue in
-            // Keep frozenCount current while filters are active
-            if hasFilters { frozenCount = newValue }
+            // Keep frozenCount live while any filter (chips or text) is active.
+            if showCountRow { frozenCount = newValue }
         }
         .onChange(of: isSearching) { _, newValue in
             // Skip keyboard focus during the silent pre-warm toggle on appear.
@@ -271,17 +307,68 @@ struct TxFilterBar: View {
             }
         }
         .onAppear {
-            // Pre-warm both layout states so the first real animation is smooth.
-            // We toggle isSearching for one render cycle with no animation and
-            // no keyboard (isPrewarming blocks the focus handler).
+            // Stage 1: pre-warm both SwiftUI layout states without animating,
+            // so the geometry cache is hot before the first real tap.
             isPrewarming = true
-            isSearching  = true
+            var t = SwiftUI.Transaction(animation: nil)
+            t.disablesAnimations = true
+            withTransaction(t) { isSearching = true }
             DispatchQueue.main.async {
-                isSearching  = false
+                withTransaction(t) { isSearching = false }
                 isPrewarming = false
+
+                // Stage 2: fire a real SwiftUI animation (same curve/duration as the
+                // chip transition) on an invisible value to pre-initialise SwiftUI's
+                // animation scheduler and CA transaction pipeline.
+                withAnimation(.easeInOut(duration: 0.25)) { _swiftUIWarmup = true }
             }
         }
+        // The warmed value is applied to a zero-size invisible view so it has
+        // no visual effect but still exercises the full animation code path.
+        .background(
+            Color.clear
+                .frame(width: 0, height: 0)
+                .opacity(_swiftUIWarmup ? 1 : 0)
+        )
     }
+}
+
+// MARK: - Core Animation warm-up helper
+
+/// Primes Core Animation's render server and display link on first appear.
+///
+/// The previous approach used `withDuration: 0.001` which is too short to
+/// actually start the display link — the render server never wakes up, so the
+/// first real animation is still slow.  Two steps are needed:
+///   1. `CATransaction.flush()` immediately commits a layer change, waking the
+///      render server process before the user touches anything.
+///   2. `UIView.animate` with the *same* duration and curve as the chip
+///      transition (0.25 s, ease-in-out) runs the display link for a full
+///      animation cycle so it is already spinning on first tap.
+private struct CAAnimationWarmer: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView {
+        let v = UIView(frame: .zero)
+        v.isUserInteractionEnabled = false
+        DispatchQueue.main.async {
+            // Step 1 — wake the render server immediately.
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            v.layer.opacity = 0.9999
+            CATransaction.commit()
+            CATransaction.flush()
+
+            // Step 2 — run a full-duration easeInOut matching the chip transition
+            // so the display link is already live when the user first taps.
+            UIView.animate(
+                withDuration: 0.25, delay: 0,
+                options: [.curveEaseInOut, .allowUserInteraction]
+            ) {
+                v.layer.opacity = 1.0
+            }
+        }
+        return v
+    }
+    func updateUIView(_ uiView: UIView, context: Context) {}
 }
 
 // MARK: - Morph chip: Location filter ↔ All Filters button
@@ -406,7 +493,7 @@ struct TxSearchBar: View {
                             .scaledToFit()
                             .foregroundStyle(Color.gray4)
                             .frame(width: 13, height: 13)
-                            .frame(width: 24, height: 24)  // touch target
+                            .frame(width: 24, height: 24)
                     }
                     .buttonStyle(.plain)
                     .transition(.scale(scale: 0.7).combined(with: .opacity))
@@ -597,10 +684,23 @@ struct TxRow: View {
     /// Controls the chevron direction for group rows (passed in from TxGroupRow).
     var isExpanded: Bool = false
 
+    /// Internal and automated transfer rows show an account name as their title —
+    /// the right subtitle is suppressed and the amount top-aligns with it.
+    /// Bank transfers are excluded: their title is the bank name, so the source/
+    /// destination account can still appear as the right-side subtitle.
+    private var isTransferRow: Bool {
+        switch transaction.type {
+        case .internalTransfer, .automatedTransfer: return true
+        default: return false
+        }
+    }
+
     /// Right-side secondary text logic:
-    ///   • Card purchase  → masked card/account identifier (cardInfo)
-    ///   • Account-level / sales (no cardInfo) → location name (when showLocation)
+    ///   • Transfer rows          → nil (account name is already the title)
+    ///   • Card purchase          → masked card/account identifier (cardInfo)
+    ///   • Account-level / sales  → location name (when showLocation)
     private var rightSubtitle: String? {
+        if isTransferRow { return nil }
         if let card = transaction.cardInfo { return card }
         if showLocation { return transaction.locationName }
         return nil
@@ -612,7 +712,7 @@ struct TxRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 16) {
+        HStack(alignment: isTransferRow ? .top : .center, spacing: 16) {
             TxIcon(transaction: transaction)
             TxRowText(name: transaction.merchantName, sub: transaction.subtitle)
             Spacer(minLength: 8)
@@ -746,8 +846,9 @@ struct TxRowMoney: View {
                 Text(sec)
                     .font(.paragraph20).foregroundStyle(Color.gray3).lineLimit(1)
             } else {
-                // Reserve height so all rows stay the same size
-                Text(" ").font(.paragraph20)
+                // Invisible spacer keeps row height consistent with two-line rows.
+                // Rendered transparent so it occupies space without showing text.
+                Text(" ").font(.paragraph20).hidden()
             }
         }
     }
@@ -806,14 +907,15 @@ struct TxIconConfig {
         case .cardPayment:
             return TxIconConfig(
                 kind: .grayIcon,
-                bg: Color(red: 0.949, green: 0.949, blue: 0.949),
+                bg: Color.gray6,
                 content: AnyView(
                     Image("TxCardIcon")
                         .resizable().renderingMode(.template)
                         .scaledToFit()
                         .frame(width: 20, height: 14)
                         .foregroundStyle(Color.gray1)
-                ))
+                ),
+                whiteAvatarBorder: true)
         case .cardPaymentGroup:
             return TxIconConfig(
                 kind: .colorIcon,
@@ -843,24 +945,20 @@ struct TxIconConfig {
                   )
             return TxIconConfig(
                 kind: .grayIcon,
-                bg: Color(white: 0, opacity: 0.05),
-                content: arrowContent)
+                bg: Color.gray6,
+                content: arrowContent,
+                whiteAvatarBorder: true)
 
         case .automatedTransfer:
-            // Outgoing transfers (e.g. savings sweep) use an upward arrow.
-            // Cycle icon is reserved for automated per-payment deductions.
             let isOutgoing = tx.amount < 0
             return TxIconConfig(
                 kind: .grayIcon,
-                bg: Color(white: 0, opacity: 0.05),
+                bg: Color.gray6,
                 content: AnyView(
                     isOutgoing
                         ? AnyView(
-                            Image("TxArrowLeft")
-                                .resizable().renderingMode(.template)
-                                .scaledToFit()
-                                .frame(width: 14, height: 14)
-                                .rotationEffect(.degrees(90))   // left → up
+                            Image(systemName: "arrow.up.right")
+                                .font(.system(size: 13, weight: .semibold))
                                 .foregroundStyle(Color.gray1)
                           )
                         : AnyView(
@@ -870,7 +968,8 @@ struct TxIconConfig {
                                 .frame(width: 24, height: 24)
                                 .foregroundStyle(Color.gray1)
                           )
-                ))
+                ),
+                whiteAvatarBorder: true)
 
         case .bankTransfer:
             return bankTransfer(name: tx.merchantName)
@@ -1040,6 +1139,8 @@ struct TxIcon: View {
             iconContent(cfg)
             if cfg.border {
                 Circle().strokeBorder(Color.black.opacity(0.15), lineWidth: 1)
+            } else if cfg.whiteAvatarBorder {
+                Circle().strokeBorder(Color.white, lineWidth: 2)
             }
         }
         .frame(width: 40, height: 40)

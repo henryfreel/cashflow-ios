@@ -167,9 +167,10 @@ struct CustomBottomSheetModifier<SheetContent: View>: ViewModifier {
                         }
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .ignoresSafeArea(.all)
-                .animation(.spring(response: 0.38, dampingFraction: 0.88), value: isPresented)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .ignoresSafeArea(.all)
+            .animation(.spring(response: 0.38, dampingFraction: 0.88), value: isPresented)
+            .animation(.spring(response: 0.38, dampingFraction: 0.88), value: compactHeight)
             }
     }
 }

@@ -15,7 +15,18 @@
                     <view key="view" contentMode="scaleToFill" id="Ze5-6b-2t3">
                         <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <imageView contentMode="scaleAspectFit" image="Jewel" translatesAutoresizingMaskIntoConstraints="NO" id="Jw1-80-Img">
+                                <rect key="frame" x="172.5" y="402" width="48" height="48"/>
+                            </imageView>
+                        </subviews>
                         <color key="backgroundColor" systemColor="systemBackgroundColor"/>
+                        <constraints>
+                            <constraint firstItem="Jw1-80-Img" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="CxJ-wl-ctr"/>
+                            <constraint firstItem="Jw1-80-Img" firstAttribute="centerY" secondItem="Ze5-6b-2t3" secondAttribute="centerY" id="CyJ-wl-ctr"/>
+                            <constraint firstItem="Jw1-80-Img" firstAttribute="width" constant="48" id="WdJ-80-wid"/>
+                            <constraint firstItem="Jw1-80-Img" firstAttribute="height" constant="48" id="HtJ-80-hgt"/>
+                        </constraints>
                         <viewLayoutGuide key="safeArea" id="Bcu-3y-fUS"/>
                     </view>
                 </viewController>
@@ -25,6 +36,7 @@
         </scene>
     </scenes>
     <resources>
+        <image name="Jewel" width="48" height="48"/>
         <systemColor name="systemBackgroundColor">
             <color white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
         </systemColor>

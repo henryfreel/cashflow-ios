@@ -33,6 +33,9 @@ struct TxFilterSheet: View {
     /// Called with the final selection only when Done is tapped.
     let onCommit: (Set<String>) -> Void
     let onDone: () -> Void
+    /// When set, renders a back-button header (drill-down from All Filters).
+    /// Tapping back pops without committing.
+    var onBack: (() -> Void)? = nil
 
     /// Staged selection — changes here do NOT propagate until Done is tapped.
     @State private var pendingKeys: Set<String>
@@ -40,13 +43,15 @@ struct TxFilterSheet: View {
     init(filter: TxActiveFilter, options: [TxFilterOption],
          initialKeys: Set<String>,
          onCommit: @escaping (Set<String>) -> Void,
-         onDone: @escaping () -> Void) {
-        self.filter     = filter
-        self.options    = options
+         onDone: @escaping () -> Void,
+         onBack: (() -> Void)? = nil) {
+        self.filter      = filter
+        self.options     = options
         self.initialKeys = initialKeys
-        self.onCommit   = onCommit
-        self.onDone     = onDone
-        _pendingKeys    = State(initialValue: initialKeys)
+        self.onCommit    = onCommit
+        self.onDone      = onDone
+        self.onBack      = onBack
+        _pendingKeys     = State(initialValue: initialKeys)
     }
 
     private var someSelected: Bool {
@@ -58,38 +63,11 @@ struct TxFilterSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             // ── Header (fixed, outside scroll) ───────────────────────────────
-            HStack(spacing: 10) {
-                Text(filter.title)
-                    .font(.heading30)
-                    .foregroundStyle(Color.gray1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                Button {
-                    onCommit(pendingKeys)
-                    onDone()
-                } label: {
-                    Text("Done")
-                        .font(.paragraphSemibold30)
-                        .foregroundStyle(Color.white)
-                        .frame(height: 48)
-                        .padding(.horizontal, 22)
-                        .background(Color.gray1)
-                        .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
+            if let onBack {
+                drillDownHeader(onBack: onBack)
+            } else {
+                standaloneHeader
             }
-            .frame(height: 48)
-            .padding(.horizontal, 24)
-            .padding(.bottom, 16)
-            .overlay(alignment: .bottom) {
-                if isScrolled {
-                    Rectangle()
-                        .fill(Color.gray5)
-                        .frame(height: 1)
-                        .transition(.opacity)
-                }
-            }
-            .animation(.easeInOut(duration: 0.2), value: isScrolled)
 
             // ── Options (scrollable) ──────────────────────────────────────────
             ScrollView(.vertical, showsIndicators: false) {
@@ -128,6 +106,91 @@ struct TxFilterSheet: View {
             pendingKeys.insert(opt.id)
             if pendingKeys.count == options.count { pendingKeys = [] }
         }
+    }
+
+    // MARK: - Headers
+
+    /// Standard standalone header: left-aligned title + Done on the right.
+    private var standaloneHeader: some View {
+        HStack(spacing: 10) {
+            Text(filter.title)
+                .font(.heading30)
+                .foregroundStyle(Color.gray1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button {
+                onCommit(pendingKeys)
+                onDone()
+            } label: {
+                Text("Done")
+                    .font(.paragraphSemibold30)
+                    .foregroundStyle(Color.white)
+                    .frame(height: 48)
+                    .padding(.horizontal, 22)
+                    .background(Color.gray1)
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(height: 48)
+        .padding(.horizontal, 24)
+        .padding(.bottom, 16)
+        .overlay(alignment: .bottom) {
+            if isScrolled {
+                Rectangle()
+                    .fill(Color.gray5)
+                    .frame(height: 1)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: isScrolled)
+    }
+
+    /// Drill-down header (from All Filters): back button + centered title + Done.
+    private func drillDownHeader(onBack: @escaping () -> Void) -> some View {
+        HStack(spacing: 0) {
+            Button(action: onBack) {
+                Image(systemName: "arrow.left")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.gray1)
+                    .frame(width: 24, height: 24)
+                    .padding(12)
+                    .background(Color.gray6)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+
+            Text(filter.title)
+                .font(.heading20)
+                .foregroundStyle(Color.black.opacity(0.9))
+                .frame(maxWidth: .infinity, alignment: .center)
+
+            Button {
+                onCommit(pendingKeys)
+                onDone()
+            } label: {
+                Text("Done")
+                    .font(.paragraphSemibold30)
+                    .foregroundStyle(Color.white)
+                    .frame(height: 48)
+                    .padding(.horizontal, 22)
+                    .background(Color.gray1)
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(height: 48)
+        .padding(.horizontal, 24)
+        .padding(.bottom, 16)
+        .overlay(alignment: .bottom) {
+            if isScrolled {
+                Rectangle()
+                    .fill(Color.gray5)
+                    .frame(height: 1)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: isScrolled)
     }
 }
 

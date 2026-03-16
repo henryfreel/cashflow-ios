@@ -22,8 +22,6 @@ struct TransactionsView: View {
     @State private var isScrolled:   Bool = false
     @State private var selectedTransaction: Transaction? = nil
 
-    @State private var showAllFiltersSheet = false
-
     @Environment(\.dismiss) private var dismiss
     @Environment(AppNavigationState.self) private var navState
 
@@ -243,10 +241,46 @@ struct TransactionsView: View {
         navState.txFilterSheetPresented = true
     }
 
-    /// Presents the all-filters summary sheet directly via local @State (bypasses the
-    /// navState relay which suffered from @Observable tracking not firing in ContentView).
+    /// Builds the all-filters navigation sheet and relays it to `navState`
+    /// so ContentView can present it above the tab bar.
     private func presentAllFiltersSheet() {
-        showAllFiltersSheet = true
+        navState.txAllFiltersSheetHeight = TxAllFiltersSheet.compactHeight
+        navState.txAllFiltersSheetContent = AnyView(
+            TxAllFiltersSheet(
+                locationOptions:     Self.locationOptions,
+                cashflowOptions:     Self.cashflowOptions,
+                categoryOptions:     Self.categoryOptions,
+                filterSheetHeight:   { [self] filter in sheetHeight(for: filter) },
+                initialLocationKeys: selectedLocations,
+                initialCashflowKeys: selectedCashflows,
+                initialCategoryKeys: selectedCategories,
+                initialDateStart:    selectedStartDate,
+                initialDateEnd:      selectedEndDate,
+                onClearAll: {
+                    selectedStartDate  = nil
+                    selectedEndDate    = nil
+                    selectedCashflows  = []
+                    selectedCategories = []
+                    selectedLocations  = []
+                    visibleCount       = 15
+                    navState.txAllFiltersSheetPresented = false
+                },
+                onDone: { navState.txAllFiltersSheetPresented = false },
+                onCommitFilter: { filter, newKeys in
+                    selectedBinding(for: filter).wrappedValue = newKeys
+                    visibleCount = 15
+                },
+                onCommitDate: { start, end in
+                    selectedStartDate = start
+                    selectedEndDate   = end
+                    visibleCount      = 15
+                },
+                onHeightChange: { h in
+                    navState.txAllFiltersSheetHeight = h
+                }
+            )
+        )
+        navState.txAllFiltersSheetPresented = true
     }
 
     /// Stores date-picker parameters on navState so ContentView can render
@@ -277,7 +311,7 @@ struct TransactionsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SecondaryNavBar(title: "Transactions", onBack: { dismiss() })
+            SecondaryNavBar(title: "Transactions", leftAlignTitle: true)
 
             // Filter bar is outside the ScrollView so it stays fixed while the list scrolls
             TxFilterBar(
@@ -304,18 +338,13 @@ struct TransactionsView: View {
                 searchText:      $searchText
             )
             .padding(.top, 8)
-            .padding(.bottom, 8)
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
-                    if displayItems.isEmpty {
-                        TxEmptyState()
-                    } else {
-                        TxPagedList(allItems: displayItems,
-                                    visibleCount: $visibleCount,
-                                    showLocation: showLocation,
-                                    onSelectTx: { selectedTransaction = $0 })
-                    }
+                    TxPagedList(allItems: displayItems,
+                                visibleCount: $visibleCount,
+                                showLocation: showLocation,
+                                onSelectTx: { selectedTransaction = $0 })
                 }
             }
             .onScrollGeometryChange(for: Bool.self) { geo in
@@ -324,41 +353,16 @@ struct TransactionsView: View {
                 withAnimation(.easeInOut(duration: 0.2)) { isScrolled = scrolled }
             }
         }
+        .overlay {
+            Color.black
+                .opacity(selectedTransaction != nil ? 0.75 : 0)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+                .animation(.easeInOut(duration: 0.35), value: selectedTransaction != nil)
+        }
         .ignoresSafeArea(.keyboard)
         .sheet(item: $selectedTransaction) { tx in
             TransactionDetailView(transaction: tx)
-                .background(SheetDimmingView())
-        }
-        .customBottomSheet(
-            isPresented: $showAllFiltersSheet,
-            compactHeight: TxAllFiltersSheet.compactHeight
-        ) {
-            TxAllFiltersSheet(
-                locationValue: chipValue(selectedLocations) ?? "All",
-                dateValue:     dateLabelValue ?? "All",
-                cashflowValue: chipValue(selectedCashflows) ?? "All",
-                categoryValue: chipValue(selectedCategories) ?? "All",
-                onClearAll: {
-                    selectedStartDate  = nil
-                    selectedEndDate    = nil
-                    selectedCashflows  = []
-                    selectedCategories = []
-                    selectedLocations  = []
-                    visibleCount       = 15
-                    showAllFiltersSheet = false
-                },
-                onDone: { showAllFiltersSheet = false },
-                onTap: { filter in
-                    showAllFiltersSheet = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                        if filter == .date {
-                            presentDatePicker()
-                        } else {
-                            presentFilterSheet(filter)
-                        }
-                    }
-                }
-            )
         }
         .navigationBarHidden(true)
         .background(Color.white)
@@ -370,18 +374,6 @@ struct TransactionsView: View {
         .onChange(of: isSearching) { _, searching in
             if !searching { searchText = "" }
         }
-    }
-}
-
-// MARK: - Empty state
-
-private struct TxEmptyState: View {
-    var body: some View {
-        VStack(spacing: 8) {
-            Text("No transactions").font(.paragraphMedium30).foregroundStyle(Color.gray1)
-            Text("Try adjusting the date range.").font(.paragraph20).foregroundStyle(Color.gray3)
-        }
-        .frame(maxWidth: .infinity).padding(.top, 60)
     }
 }
 
@@ -415,7 +407,6 @@ private struct TxPagedList: View {
                 }
             }
         }
-        .padding(.top, 8)
         .padding(.bottom, 32)
     }
 }
@@ -455,6 +446,12 @@ private struct TransactionsPreviewHost: View {
                     onHeightChange: { navState.txDatePickerHeight = $0 }
                 )
             }
+        }
+        .customBottomSheet(
+            isPresented:   $navState.txAllFiltersSheetPresented,
+            compactHeight: navState.txAllFiltersSheetHeight
+        ) {
+            navState.txAllFiltersSheetContent
         }
     }
 }
