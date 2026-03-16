@@ -5,14 +5,23 @@ import Foundation
 // Used for both expense breakdowns on monthly records and future transaction tagging.
 
 enum ExpenseCategory: String, CaseIterable, Identifiable {
-    case cogs       = "Cost of Goods"
-    case labor      = "Labor"
-    case rent       = "Rent"
-    case marketing  = "Marketing"
-    case utilities  = "Utilities"
-    case misc       = "Miscellaneous"
+    case sales          = "Sales"
+    case cogs           = "Cost of Goods"
+    case laborPayroll   = "Labor & Payroll"
+    case rentUtilities  = "Rent & Utilities"
+    case marketing      = "Marketing"
+    case officeSupplies = "Office Supplies"
+    case transportation = "Transportation"
+    case taxesLicenses  = "Taxes & Licenses"
+    case personal       = "Personal"
+    case transfers      = "Transfers"
 
     var id: String { rawValue }
+
+    /// Categories excluded from P&L net income calculations.
+    var excludedFromPL: Bool {
+        self == .personal || self == .transfers
+    }
 }
 
 // MARK: - Expense Breakdown
@@ -21,12 +30,12 @@ enum ExpenseCategory: String, CaseIterable, Identifiable {
 // Proportions are held constant across periods; transaction-level data (future) will replace
 // these estimates with actuals.
 //
-//   COGS       51.5%  – inventory / cost of goods sold
-//   Labor      24.0%  – wages across all three locations
-//   Rent       12.2%  – combined lease costs
-//   Marketing   4.4%  – campaigns, social, events
-//   Utilities   4.4%  – power, internet, POS, packaging
-//   Misc        3.5%  – insurance, admin, miscellaneous
+//   COGS       51.5%  - inventory / cost of goods sold
+//   Labor      24.0%  - wages across all three locations
+//   Rent       12.2%  - combined lease costs
+//   Marketing   4.4%  - campaigns, social, events
+//   Utilities   4.4%  - power, internet, POS, packaging
+//   Misc        3.5%  - insurance, admin, miscellaneous
 
 struct ExpenseBreakdown {
     let total: Double
@@ -59,10 +68,10 @@ enum RevenueCategory: String, CaseIterable, Identifiable {
 // Proportions are held constant across periods; actuals will replace these
 // once transaction-level data is available.
 //
-//   Square Card Sales  68%  – in-store card payments via Square terminals
-//   Online Store       18%  – e-commerce orders
-//   Cash Sales         10%  – in-store cash transactions
-//   Gift Cards          4%  – gift card redemptions
+//   Square Card Sales  68%  - in-store card payments via Square terminals
+//   Online Store       18%  - e-commerce orders
+//   Cash Sales         10%  - in-store cash transactions
+//   Gift Cards          4%  - gift card redemptions
 
 struct RevenueBreakdown {
     let total: Double
@@ -237,12 +246,12 @@ extension AppFinancials {
                 id: UUID(), date: day(1), amount: -expB.labor * frac * 0.5,
                 merchantName: "Square Payroll", subtitle: dateLabel(year: year, month: month, day: 1),
                 locationName: loc, cardInfo: nil, type: .purchase,
-                expenseCategory: ExpenseCategory.labor.rawValue, isRevenue: false))
+                expenseCategory: ExpenseCategory.laborPayroll.rawValue, isRevenue: false))
             items.append(Transaction(
                 id: UUID(), date: day(16), amount: -expB.labor * frac * 0.5,
                 merchantName: "Square Payroll", subtitle: dateLabel(year: year, month: month, day: 16),
                 locationName: loc, cardInfo: nil, type: .purchase,
-                expenseCategory: ExpenseCategory.labor.rawValue, isRevenue: false))
+                expenseCategory: ExpenseCategory.laborPayroll.rawValue, isRevenue: false))
         }
 
         // ── Expenses: Rent — ACH per location (no card) ───────────────────────────
@@ -250,17 +259,17 @@ extension AppFinancials {
             id: UUID(), date: day(1), amount: -expB.rent * 0.45,
             merchantName: "Landlord LLC", subtitle: dateLabel(year: year, month: month, day: 1),
             locationName: "Hayes Valley", cardInfo: nil, type: .purchase,
-            expenseCategory: ExpenseCategory.rent.rawValue, isRevenue: false))
+            expenseCategory: ExpenseCategory.rentUtilities.rawValue, isRevenue: false))
         items.append(Transaction(
             id: UUID(), date: day(1), amount: -expB.rent * 0.35,
             merchantName: "Landlord LLC", subtitle: dateLabel(year: year, month: month, day: 1),
             locationName: "Bernal Heights", cardInfo: nil, type: .purchase,
-            expenseCategory: ExpenseCategory.rent.rawValue, isRevenue: false))
+            expenseCategory: ExpenseCategory.rentUtilities.rawValue, isRevenue: false))
         items.append(Transaction(
             id: UUID(), date: day(1), amount: -expB.rent * 0.20,
             merchantName: "Landlord LLC", subtitle: dateLabel(year: year, month: month, day: 1),
             locationName: "The Mission", cardInfo: nil, type: .purchase,
-            expenseCategory: ExpenseCategory.rent.rawValue, isRevenue: false))
+            expenseCategory: ExpenseCategory.rentUtilities.rawValue, isRevenue: false))
 
         // ── Expenses: Marketing — card purchases ───────────────────────────────────
         items.append(Transaction(
@@ -270,7 +279,7 @@ extension AppFinancials {
             expenseCategory: ExpenseCategory.marketing.rawValue, isRevenue: false))
         items.append(Transaction(
             id: UUID(), date: day(21), amount: -expB.marketing * 0.50,
-            merchantName: "Github", subtitle: dateLabel(year: year, month: month, day: 21),
+            merchantName: "Etsy", subtitle: dateLabel(year: year, month: month, day: 21),
             locationName: nil, cardInfo: "Square Card 4812", type: .purchase,
             expenseCategory: ExpenseCategory.marketing.rawValue, isRevenue: false))
 
@@ -279,46 +288,46 @@ extension AppFinancials {
             id: UUID(), date: day(12), amount: -expB.utilities * 0.60,
             merchantName: "Uline", subtitle: dateLabel(year: year, month: month, day: 12),
             locationName: nil, cardInfo: "Square Card 4812", type: .purchase,
-            expenseCategory: ExpenseCategory.utilities.rawValue, isRevenue: false))
+            expenseCategory: ExpenseCategory.rentUtilities.rawValue, isRevenue: false))
         items.append(Transaction(
             id: UUID(), date: day(22), amount: -expB.utilities * 0.40,
             merchantName: "Amazon", subtitle: dateLabel(year: year, month: month, day: 22),
             locationName: nil, cardInfo: "Visa 7832", type: .purchase,
-            expenseCategory: ExpenseCategory.utilities.rawValue, isRevenue: false))
+            expenseCategory: ExpenseCategory.rentUtilities.rawValue, isRevenue: false))
 
         // ── Expenses: Misc — card purchases ────────────────────────────────────────
         items.append(Transaction(
             id: UUID(), date: day(6), amount: -expB.misc * 0.22,
             merchantName: "Blue Bottle Coffee", subtitle: dateLabel(year: year, month: month, day: 6),
             locationName: "Hayes Valley", cardInfo: "Square Card 4812", type: .purchase,
-            expenseCategory: ExpenseCategory.misc.rawValue, isRevenue: false))
+            expenseCategory: ExpenseCategory.officeSupplies.rawValue, isRevenue: false))
         items.append(Transaction(
             id: UUID(), date: day(14), amount: -expB.misc * 0.28,
             merchantName: "Señor Sisig", subtitle: dateLabel(year: year, month: month, day: 14),
             locationName: "Bernal Heights", cardInfo: "Visa 7832", type: .purchase,
-            expenseCategory: ExpenseCategory.misc.rawValue, isRevenue: false))
+            expenseCategory: ExpenseCategory.officeSupplies.rawValue, isRevenue: false))
         items.append(Transaction(
             id: UUID(), date: day(19), amount: -expB.misc * 0.25,
             merchantName: "Starbucks", subtitle: dateLabel(year: year, month: month, day: 19),
             locationName: "Hayes Valley", cardInfo: "Square Card 4812", type: .purchase,
-            expenseCategory: ExpenseCategory.misc.rawValue, isRevenue: false))
+            expenseCategory: ExpenseCategory.officeSupplies.rawValue, isRevenue: false))
         items.append(Transaction(
             id: UUID(), date: day(24), amount: -expB.misc * 0.25,
             merchantName: "Airtable", subtitle: dateLabel(year: year, month: month, day: 24),
             locationName: nil, cardInfo: "Square Card 4812", type: .purchase,
-            expenseCategory: ExpenseCategory.misc.rawValue, isRevenue: false))
+            expenseCategory: ExpenseCategory.officeSupplies.rawValue, isRevenue: false))
 
         // ── Automated transfers (savings sweep, loan payment) ─────────────────────
         items.append(Transaction(
             id: UUID(), date: day(30), amount: -(expTotal * 0.02),
             merchantName: "Savings Transfer", subtitle: dateLabel(year: year, month: month, day: 30),
             locationName: nil, cardInfo: nil, type: .automatedTransfer,
-            expenseCategory: nil, isRevenue: false))
+            expenseCategory: ExpenseCategory.transfers.rawValue, isRevenue: false))
         items.append(Transaction(
             id: UUID(), date: day(15), amount: -(expTotal * 0.015),
-            merchantName: "BofA •1892", subtitle: dateLabel(year: year, month: month, day: 15),
+            merchantName: "BofA 1892", subtitle: dateLabel(year: year, month: month, day: 15),
             locationName: nil, cardInfo: nil, type: .bankTransfer,
-            expenseCategory: nil, isRevenue: false))
+            expenseCategory: ExpenseCategory.transfers.rawValue, isRevenue: false))
 
         return items.sorted { $0.date < $1.date }
     }
@@ -386,9 +395,9 @@ struct MonthlyFinancial: Identifiable {
 // MARK: - Weekly Financial Record
 
 struct WeeklyFinancial: Identifiable {
-    let id: Int             // 0-based (0–12)
+    let id: Int             // 0-based (0-12)
     let startLabel: String  // axis label e.g. "10/1"; empty for future periods
-    let dateRange: String   // tooltip label e.g. "Oct 1 – Oct 7"
+    let dateRange: String   // tooltip label e.g. "Oct 1 - Oct 7"
     let revenue: Double
     let expenses: Double
 
@@ -399,7 +408,7 @@ struct WeeklyFinancial: Identifiable {
 // MARK: - Daily Financial Record
 
 struct DailyFinancial: Identifiable {
-    let id: Int       // day number 1–31
+    let id: Int       // day number 1-31
     let revenue: Double
     let expenses: Double
 
@@ -415,12 +424,12 @@ struct DailyFinancial: Identifiable {
 //   Annual expenses : ~$968,073
 //   Net profit      : ~$132,002  (~12% margin)
 //
-// 12% is solid for independent boutique retail (industry average: 9–11%).
+// 12% is solid for independent boutique retail (industry average: 9-11%).
 // Expense mix: COGS 51.5% | Labor 24% | Rent 12.2% | Marketing 4.4% |
 //              Utilities 4.4% | Misc 3.5%
 //
-// Seasonal shape: strong Jan–Feb (post-holiday clearance + Valentine's),
-// soft spring dip, May–Jul loss months (slow season + summer inventory buy),
+// Seasonal shape: strong Jan-Feb (post-holiday clearance + Valentine's),
+// soft spring dip, May-Jul loss months (slow season + summer inventory buy),
 // steady Q3 recovery, strong Q4 holiday run.
 //
 // Scale: original seed values multiplied by revenue ×11.14 and expenses ×17.05.
@@ -430,7 +439,7 @@ enum AppFinancials {
     // MARK: - Account Balances
     //
     // Current balances for a 3-location boutique retail operation.
-    // Net balance = checking + all savings – outstanding loans (cash position).
+    // Net balance = checking + all savings - outstanding loans (cash position).
     // Credit card outstanding is excluded; it is paid from operating cash flow.
 
     // Checking — one Square Checking account per location
@@ -481,27 +490,27 @@ enum AppFinancials {
         .init(id: 11, month: "D", fullMonth: "December",  revenue:  89_847.53, expenses:  56_418.73),  // net  33,428.80  holiday through Dec 15
     ]
 
-    // MARK: - Quarterly weekly data (Q4: Oct 1 – Dec 31, 13 weeks)
+    // MARK: - Quarterly weekly data (Q4: Oct 1 - Dec 31, 13 weeks)
     //
-    // Weeks 0–10 have data; weeks 11–12 are future/empty (Dec 16–31).
+    // Weeks 0-10 have data; weeks 11-12 are future/empty (Dec 16-31).
 
     static let quarterlyWeeks: [WeeklyFinancial] = [
-        .init(id:  0, startLabel: "10/1",  dateRange: "Oct 1 – Oct 7",    revenue:  23_302.99, expenses:  17_552.47),
-        .init(id:  1, startLabel: "10/8",  dateRange: "Oct 8 – Oct 14",   revenue:  23_444.91, expenses:  17_695.17),
-        .init(id:  2, startLabel: "10/15", dateRange: "Oct 15 – Oct 21",  revenue:  23_264.11, expenses:  17_469.95),
-        .init(id:  3, startLabel: "10/22", dateRange: "Oct 22 – Oct 28",  revenue:  23_369.83, expenses:  17_621.52),
-        .init(id:  4, startLabel: "10/29", dateRange: "Oct 29 – Nov 4",   revenue:  24_658.05, expenses:  17_899.61),
-        .init(id:  5, startLabel: "11/5",  dateRange: "Nov 5 – Nov 11",   revenue:  25_483.20, expenses:  17_958.42),
-        .init(id:  6, startLabel: "11/12", dateRange: "Nov 12 – Nov 18",  revenue:  25_607.85, expenses:  18_114.09),
-        .init(id:  7, startLabel: "11/19", dateRange: "Nov 19 – Nov 25",  revenue:  25_341.38, expenses:  17_860.39),
-        .init(id:  8, startLabel: "11/26", dateRange: "Nov 26 – Dec 2",   revenue:  28_701.43, expenses:  20_338.43),
-        .init(id:  9, startLabel: "12/3",  dateRange: "Dec 3 – Dec 9",    revenue:  33_489.62, expenses:  25_576.19),
-        .init(id: 10, startLabel: "12/10", dateRange: "Dec 10 – Dec 15",  revenue:  31_675.81, expenses:  21_838.66),
-        .init(id: 11, startLabel: "",      dateRange: "Dec 16 – Dec 22",  revenue:  0,         expenses:  0),
-        .init(id: 12, startLabel: "",      dateRange: "Dec 23 – Dec 31",  revenue:  0,         expenses:  0),
+        .init(id:  0, startLabel: "10/1",  dateRange: "Oct 1 - Oct 7",    revenue:  23_302.99, expenses:  17_552.47),
+        .init(id:  1, startLabel: "10/8",  dateRange: "Oct 8 - Oct 14",   revenue:  23_444.91, expenses:  17_695.17),
+        .init(id:  2, startLabel: "10/15", dateRange: "Oct 15 - Oct 21",  revenue:  23_264.11, expenses:  17_469.95),
+        .init(id:  3, startLabel: "10/22", dateRange: "Oct 22 - Oct 28",  revenue:  23_369.83, expenses:  17_621.52),
+        .init(id:  4, startLabel: "10/29", dateRange: "Oct 29 - Nov 4",   revenue:  24_658.05, expenses:  17_899.61),
+        .init(id:  5, startLabel: "11/5",  dateRange: "Nov 5 - Nov 11",   revenue:  25_483.20, expenses:  17_958.42),
+        .init(id:  6, startLabel: "11/12", dateRange: "Nov 12 - Nov 18",  revenue:  25_607.85, expenses:  18_114.09),
+        .init(id:  7, startLabel: "11/19", dateRange: "Nov 19 - Nov 25",  revenue:  25_341.38, expenses:  17_860.39),
+        .init(id:  8, startLabel: "11/26", dateRange: "Nov 26 - Dec 2",   revenue:  28_701.43, expenses:  20_338.43),
+        .init(id:  9, startLabel: "12/3",  dateRange: "Dec 3 - Dec 9",    revenue:  33_489.62, expenses:  25_576.19),
+        .init(id: 10, startLabel: "12/10", dateRange: "Dec 10 - Dec 15",  revenue:  31_675.81, expenses:  21_838.66),
+        .init(id: 11, startLabel: "",      dateRange: "Dec 16 - Dec 22",  revenue:  0,         expenses:  0),
+        .init(id: 12, startLabel: "",      dateRange: "Dec 23 - Dec 31",  revenue:  0,         expenses:  0),
     ]
 
-    // MARK: - December daily data (days 1–15 have data; 16–31 are future/empty)
+    // MARK: - December daily data (days 1-15 have data; 16-31 are future/empty)
     //
     // Revenue sum  : ~$75,661   (matches December monthly)
     // Expenses sum : ~$54,920   (matches December monthly)
@@ -690,12 +699,12 @@ enum AppFinancials {
             }
             endM = max(1, min(12, endM))
 
-            // Format "Mon DD – Mon DD"
+            // Format "Mon DD - Mon DD"
             let sA = monthAbbrev[startM - 1]
             let eA = monthAbbrev[endM   - 1]
             let dateRange = startM == endM
-                ? "\(sA) \(startD) – \(sA) \(endD)"
-                : "\(sA) \(startD) – \(eA) \(endD)"
+                ? "\(sA) \(startD) - \(sA) \(endD)"
+                : "\(sA) \(startD) - \(eA) \(endD)"
 
             // All generated quarters are fully in the past — hasData == true for all weeks
             results.append(WeeklyFinancial(

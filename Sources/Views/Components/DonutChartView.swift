@@ -19,7 +19,7 @@ struct DonutChartView: View {
     /// Applied to the selected arc and the center category label.
     let accentColor: Color
     /// Short date-range string shown in the center below the value.
-    /// e.g. "Jan – Dec 2024"
+    /// e.g. "Jan - Dec 2024"
     let periodLabel: String
 
     // MARK: - State
@@ -148,7 +148,7 @@ struct DonutChartView: View {
         return (endDeg + s) / 2
     }
 
-    /// Reflects an angle around the 12–6 o'clock vertical axis: θ → −180° − θ.
+    /// Reflects an angle around the 12-6 o'clock vertical axis: θ → −180° − θ.
     /// Applying this to every angle in the CW layout produces the identical
     /// layout running counter-clockwise, with 12 o'clock still as the origin.
     private func R(_ deg: Double) -> Double { -180.0 - deg }

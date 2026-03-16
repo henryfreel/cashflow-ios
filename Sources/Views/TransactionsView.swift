@@ -15,8 +15,14 @@ struct TransactionsView: View {
     @State private var selectedCategories: Set<String> = []
     @State private var selectedLocations:  Set<String> = []
 
+    @State private var isSearching:  Bool   = false
+    @State private var searchText:   String = ""
+
     @State private var visibleCount: Int  = 15
     @State private var isScrolled:   Bool = false
+    @State private var selectedTransaction: Transaction? = nil
+
+    @State private var showAllFiltersSheet = false
 
     @Environment(\.dismiss) private var dismiss
     @Environment(AppNavigationState.self) private var navState
@@ -108,13 +114,13 @@ struct TransactionsView: View {
                 fmt.dateFormat = "MMM yyyy"
                 return fmt.string(from: start)
             } else if sy == ey {
-                // Same year — "Jan – Dec 2024"
+                // Same year — "Jan - Dec 2024"
                 fmt.dateFormat = "MMM"
-                return "\(fmt.string(from: start)) – \(fmt.string(from: end)) \(sy)"
+                return "\(fmt.string(from: start)) - \(fmt.string(from: end)) \(sy)"
             } else {
-                // Cross-year — "Jan 2023 – Dec 2024"
+                // Cross-year — "Jan 2023 - Dec 2024"
                 fmt.dateFormat = "MMM yyyy"
-                return "\(fmt.string(from: start)) – \(fmt.string(from: end))"
+                return "\(fmt.string(from: start)) - \(fmt.string(from: end))"
             }
         } else {
             fmt.dateFormat = "MMM d, yyyy"
@@ -144,7 +150,13 @@ struct TransactionsView: View {
                 guard let cat = tx.expenseCategory else { return true }
                 return selectedCategories.contains(cat)
             }()
-            return dateOk && locOk && flowOk && catOk
+            let searchOk: Bool = {
+                guard !searchText.isEmpty else { return true }
+                let q = searchText.lowercased()
+                return tx.merchantName.lowercased().contains(q)
+                    || (tx.expenseCategory ?? "").lowercased().contains(q)
+            }()
+            return dateOk && locOk && flowOk && catOk && searchOk
         }.sorted { $0.date > $1.date }
     }
 
@@ -231,6 +243,12 @@ struct TransactionsView: View {
         navState.txFilterSheetPresented = true
     }
 
+    /// Presents the all-filters summary sheet directly via local @State (bypasses the
+    /// navState relay which suffered from @Observable tracking not firing in ContentView).
+    private func presentAllFiltersSheet() {
+        showAllFiltersSheet = true
+    }
+
     /// Stores date-picker parameters on navState so ContentView can render
     /// TxDatePickerSheet directly as a concrete type (avoiding AnyView identity loss).
     private func presentDatePicker() {
@@ -259,37 +277,44 @@ struct TransactionsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SecondaryNavBar(title: "Transactions", onBack: { dismiss() }, isScrolled: isScrolled)
+            SecondaryNavBar(title: "Transactions", onBack: { dismiss() })
+
+            // Filter bar is outside the ScrollView so it stays fixed while the list scrolls
+            TxFilterBar(
+                periodLabel:      dateLabelValue ?? "",
+                cashflow:         chipValue(selectedCashflows) ?? "All",
+                category:         chipValue(selectedCategories),
+                location:         chipValue(selectedLocations),
+                hasFilters:       hasFilters,
+                transactionCount: displayItems.count,
+                onClear: {
+                    selectedStartDate  = nil
+                    selectedEndDate    = nil
+                    selectedCashflows  = []
+                    selectedCategories = []
+                    selectedLocations  = []
+                    visibleCount       = 15
+                },
+                onTapLocation:   { presentFilterSheet(.location) },
+                onTapDate:       { presentDatePicker()            },
+                onTapCashflow:   { presentFilterSheet(.cashflow)  },
+                onTapCategory:   { presentFilterSheet(.category)  },
+                onTapAllFilters: { presentAllFiltersSheet()        },
+                isSearching:     $isSearching,
+                searchText:      $searchText
+            )
+            .padding(.top, 8)
+            .padding(.bottom, 8)
+
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
-                    TxFilterBar(
-                        periodLabel:   dateLabelValue ?? "",
-                        cashflow:      chipValue(selectedCashflows) ?? "All",
-                        category:      chipValue(selectedCategories),
-                        location:      chipValue(selectedLocations),
-                        hasFilters:    hasFilters,
-                        onClear: {
-                            selectedStartDate  = nil
-                            selectedEndDate    = nil
-                            selectedCashflows  = []
-                            selectedCategories = []
-                            selectedLocations  = []
-                            visibleCount       = 15
-                        },
-                        onTapLocation: { presentFilterSheet(.location) },
-                        onTapDate:     { presentDatePicker()            },
-                        onTapCashflow: { presentFilterSheet(.cashflow)  },
-                        onTapCategory: { presentFilterSheet(.category)  }
-                    )
-                    .padding(.top, 24)
-                    .padding(.bottom, 24)
-
                     if displayItems.isEmpty {
                         TxEmptyState()
                     } else {
                         TxPagedList(allItems: displayItems,
                                     visibleCount: $visibleCount,
-                                    showLocation: showLocation)
+                                    showLocation: showLocation,
+                                    onSelectTx: { selectedTransaction = $0 })
                     }
                 }
             }
@@ -299,12 +324,52 @@ struct TransactionsView: View {
                 withAnimation(.easeInOut(duration: 0.2)) { isScrolled = scrolled }
             }
         }
+        .ignoresSafeArea(.keyboard)
+        .sheet(item: $selectedTransaction) { tx in
+            TransactionDetailView(transaction: tx)
+                .background(SheetDimmingView())
+        }
+        .customBottomSheet(
+            isPresented: $showAllFiltersSheet,
+            compactHeight: TxAllFiltersSheet.compactHeight
+        ) {
+            TxAllFiltersSheet(
+                locationValue: chipValue(selectedLocations) ?? "All",
+                dateValue:     dateLabelValue ?? "All",
+                cashflowValue: chipValue(selectedCashflows) ?? "All",
+                categoryValue: chipValue(selectedCategories) ?? "All",
+                onClearAll: {
+                    selectedStartDate  = nil
+                    selectedEndDate    = nil
+                    selectedCashflows  = []
+                    selectedCategories = []
+                    selectedLocations  = []
+                    visibleCount       = 15
+                    showAllFiltersSheet = false
+                },
+                onDone: { showAllFiltersSheet = false },
+                onTap: { filter in
+                    showAllFiltersSheet = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        if filter == .date {
+                            presentDatePicker()
+                        } else {
+                            presentFilterSheet(filter)
+                        }
+                    }
+                }
+            )
+        }
         .navigationBarHidden(true)
         .background(Color.white)
         .onChange(of: selectedStartDate)  { _, _ in visibleCount = 15 }
         .onChange(of: selectedCashflows)  { _, _ in visibleCount = 15 }
         .onChange(of: selectedCategories) { _, _ in visibleCount = 15 }
         .onChange(of: selectedLocations)  { _, _ in visibleCount = 15 }
+        .onChange(of: searchText)         { _, _ in visibleCount = 15 }
+        .onChange(of: isSearching) { _, searching in
+            if !searching { searchText = "" }
+        }
     }
 }
 
@@ -326,16 +391,27 @@ private struct TxPagedList: View {
     let allItems: [Transaction]
     @Binding var visibleCount: Int
     var showLocation: Bool = true
+    var onSelectTx: ((Transaction) -> Void)? = nil
     var body: some View {
         let slice  = Array(allItems.prefix(visibleCount))
         let groups = txBuildGroups(from: slice)
         let lastID = groups.last?.items.last?.id
         let canLoad = visibleCount < allItems.count
-        LazyVStack(spacing: 24, pinnedViews: []) {
+        LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
             ForEach(groups) { g in
-                TxMonthSection(group: g, lastID: lastID, hasMore: canLoad,
-                               showLocation: showLocation) {
-                    visibleCount = min(visibleCount + 15, allItems.count)
+                Section {
+                    TxMonthSection(group: g, lastID: lastID, hasMore: canLoad,
+                                   showLocation: showLocation,
+                                   onLoadMore: { visibleCount = min(visibleCount + 15, allItems.count) },
+                                   onSelectTx: onSelectTx)
+                        .padding(.bottom, 16)
+                } header: {
+                    Text(g.title)
+                        .font(.heading20)
+                        .foregroundStyle(Color.gray1)
+                        .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
+                        .padding(.horizontal, 24)
+                        .background(Color.white)
                 }
             }
         }

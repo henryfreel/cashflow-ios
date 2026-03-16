@@ -96,9 +96,11 @@ struct TxDatePickerSheet: View {
 
             VStack(alignment: .leading, spacing: 23) {
                 monthNavRow
-                    // Suppress any inherited animation so the title snaps to the new
-                    // month label instantly — only the calendar grid should slide.
-                    .transaction { $0.animation = nil }
+                    // Only suppress animation driven by displayMonth changes so the
+                    // title snaps instantly on navigation — the sheet's own spring
+                    // presentation animation is driven by a different value and
+                    // will still play correctly on device.
+                    .animation(nil, value: displayMonth)
 
                 VStack(alignment: .leading, spacing: 16) {
                     dayOfWeekRow

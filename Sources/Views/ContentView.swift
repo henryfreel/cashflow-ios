@@ -33,6 +33,7 @@ final class AppNavigationState {
     var txDatePickerInitialEnd: Date? = nil
     var txDatePickerOnCommit: ((Date?, Date?) -> Void)? = nil
     var txDatePickerOnDone: (() -> Void)? = nil
+
 }
 
 // MARK: -
@@ -55,6 +56,9 @@ struct ContentView: View {
                     navState.selectedTab = tapped
                 }
             }
+            // Prevent the keyboard from pushing the tab bar up. Each individual
+            // view that needs keyboard-aware layout handles it internally.
+            .ignoresSafeArea(.keyboard)
             // Filter sheet — applied here, ABOVE the tab bar, so it covers it
             .customBottomSheet(
                 isPresented:   $navState.txFilterSheetPresented,

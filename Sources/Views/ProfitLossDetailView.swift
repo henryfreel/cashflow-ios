@@ -120,16 +120,15 @@ struct ProfitLossDetailView: View {
     private var expenseDonutSegments: [DonutChartView.Segment] {
         let b = expenseBreakdown
         return [
-            .init(id: 0, name: ExpenseCategory.cogs.rawValue,      value: b.cogs),
-            .init(id: 1, name: ExpenseCategory.labor.rawValue,      value: b.labor),
-            .init(id: 2, name: ExpenseCategory.rent.rawValue,       value: b.rent),
-            .init(id: 3, name: ExpenseCategory.marketing.rawValue,  value: b.marketing),
-            .init(id: 4, name: ExpenseCategory.utilities.rawValue,  value: b.utilities),
-            .init(id: 5, name: ExpenseCategory.misc.rawValue,       value: b.misc),
+            .init(id: 0, name: ExpenseCategory.cogs.rawValue,          value: b.cogs),
+            .init(id: 1, name: ExpenseCategory.laborPayroll.rawValue,   value: b.labor),
+            .init(id: 2, name: ExpenseCategory.rentUtilities.rawValue,  value: b.rent + b.utilities),
+            .init(id: 3, name: ExpenseCategory.marketing.rawValue,      value: b.marketing),
+            .init(id: 4, name: ExpenseCategory.officeSupplies.rawValue, value: b.misc),
         ]
     }
 
-    private var donutPeriodLabel: String { "Jan – Dec \(selectedYear)" }
+    private var donutPeriodLabel: String { "Jan - Dec \(selectedYear)" }
 
     /// The proportion of the annual total that the selected donut segment represents.
     /// Fixed proportions mean this equals the category's share for any sub-period too.
@@ -340,7 +339,7 @@ struct ProfitLossDetailView: View {
 
     /// Human-readable label for the bar currently under the user's finger.
     /// Year view → full month name ("December").
-    /// Quarter view → week date range ("Oct 1 – Oct 7").
+    /// Quarter view → week date range ("Oct 1 - Oct 7").
     /// Month view → full date with ordinal ("December 1st, 2024").
     private var scrubLabel: String? {
         guard let si = scrubIndex, si < currentEntries.count else { return nil }
@@ -358,7 +357,7 @@ struct ProfitLossDetailView: View {
             return "\(Self.monthAbbrevs[selectedMonth - 1]) \(day)"
         case "Quarter":
             // Replace en dash with hyphen for compact list-row titles
-            return entry.fullLabel.replacingOccurrences(of: "–", with: "-")
+            return entry.fullLabel.replacingOccurrences(of: "-", with: "-")
         default: // Year
             return entry.fullLabel
         }
@@ -403,15 +402,15 @@ struct ProfitLossDetailView: View {
         case "Month":
             return "\(Self.monthNames[selectedMonth - 1]), \(selectedYear)"
         default: // "Year"
-            return "Jan – Dec, \(selectedYear)"
+            return "Jan - Dec, \(selectedYear)"
         }
     }
 
     // MARK: Navigation helpers
 
     // Year view: swipe between available years (minYear .. currentYear).
-    // Quarter view: navigate Q1–Q4, crossing into previous/next year when at boundaries.
-    // Month view: navigate Jan–Dec, crossing into previous/next year when at boundaries.
+    // Quarter view: navigate Q1-Q4, crossing into previous/next year when at boundaries.
+    // Month view: navigate Jan-Dec, crossing into previous/next year when at boundaries.
 
     /// Allow one period beyond data boundary (e.g. 2022 when minYear is 2023).
     private var canGoBack: Bool {
@@ -771,7 +770,7 @@ struct ProfitLossDetailView: View {
                     image: noData ? "PLRowRingEmpty" : "PLRowRingExpenses",
                     title: "Total expenses",
                     value: fmt(totalExpenses),
-                    valuePrefix: noData ? "" : "–",
+                    valuePrefix: noData ? "" : "-",
                     yoyPct: showYoy ? expYoyPct : nil,
                     animateValue: totalExpenses
                 )
@@ -805,7 +804,7 @@ struct ProfitLossDetailView: View {
     }
 
     /// Figma "Launcher row" (2378:16708 / 2378:16720).
-    /// HStack: icon(40×40) – content(flex-1) – chevron(16×16). Gap: 16.
+    /// HStack: icon(40×40) - content(flex-1) - chevron(16×16). Gap: 16.
     /// Content VStack gap=2: title (14pt Regular, 55% black) / value row.
     /// Value row HStack gap=4 aligned to lastTextBaseline: prefix+SlotMachineText (16pt SemiBold, 90% black) + (↑X%) (14pt, gray3).
     private func revExpRow(image: String,
@@ -1086,7 +1085,7 @@ struct ProfitLossDetailView: View {
         let catIndicator: IndicatorKind = isCategory
             ? .dot(pageTitle == "Revenue" ? Color.green3 : Color.red3)
             : .net
-        let catValuePrefix = (isCategory && pageTitle == "Expenses") ? "–" : ""
+        let catValuePrefix = (isCategory && pageTitle == "Expenses") ? "-" : ""
 
         return metricsRows(
             revTitle: "Total revenue",
@@ -1142,7 +1141,7 @@ struct ProfitLossDetailView: View {
                     title: expTitle,
                     subtitle: isFutureScrub ? "↓ Change from last year TBD" : (hasPrev ? yoyLabel(expYoy, up: false) + " \(yoySuffix)" : nil),
                     value: fmt(expValue),
-                    valuePrefix: "–",
+                    valuePrefix: "-",
                     valueFont: .paragraphSemibold30,
                     noPreviousData: !hasPrev && !isFutureScrub,
                     animateValue: animateNumbers ? expValue : nil

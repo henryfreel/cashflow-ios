@@ -26,10 +26,10 @@ struct PLYearBarChart: View {
         /// Standard P&L: revenue bars up, expense bars down, net-profit overlay.
         case netProfit
         /// Revenue-only: single bars growing from zero at the bottom.
-        /// `proportion` is the selected-category share of total revenue (0–1).
+        /// `proportion` is the selected-category share of total revenue (0-1).
         case revenueOnly(Double)
         /// Expenses-only: single bars growing from zero at the top.
-        /// `proportion` is the selected-category share of total expenses (0–1).
+        /// `proportion` is the selected-category share of total expenses (0-1).
         case expensesOnly(Double)
     }
 
@@ -621,7 +621,7 @@ struct PLChartScrubOverlay: UIViewRepresentable {
 
 
 #if DEBUG
-#Preview("PLYearBarChart – Year") {
+#Preview("PLYearBarChart - Year") {
     PLYearBarChart(
         entries: AppFinancials.monthly.map {
             BarChartEntry(id: $0.id, label: $0.month, fullLabel: $0.fullMonth,

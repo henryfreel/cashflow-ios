@@ -10,14 +10,17 @@ extension View {
     ///  - Covers the tab bar (via ignoresSafeArea .bottom which extends into the
     ///    safeAreaInset created by ContentView's BottomTabBar)
     ///  - Supports drag-down to dismiss and drag-up to expand to full height
+    ///  - `forceExpanded`: when set to true, programmatically expands the sheet to full height
     func customBottomSheet<Content: View>(
-        isPresented:   Binding<Bool>,
-        compactHeight: CGFloat,
+        isPresented:    Binding<Bool>,
+        compactHeight:  CGFloat,
+        forceExpanded:  Binding<Bool> = .constant(false),
         @ViewBuilder content: @escaping () -> Content
     ) -> some View {
         modifier(CustomBottomSheetModifier(
             isPresented:   isPresented,
             compactHeight: compactHeight,
+            forceExpanded: forceExpanded,
             sheetContent:  content
         ))
     }
@@ -26,9 +29,10 @@ extension View {
 // MARK: - Modifier implementation
 
 struct CustomBottomSheetModifier<SheetContent: View>: ViewModifier {
-    @Binding var isPresented:  Bool
-    let compactHeight:         CGFloat
-    let sheetContent:          () -> SheetContent
+    @Binding var isPresented:   Bool
+    let compactHeight:          CGFloat
+    @Binding var forceExpanded: Bool
+    let sheetContent:           () -> SheetContent
 
     @State private var dragOffset: CGFloat = 0
     @State private var isExpanded: Bool    = false
@@ -53,7 +57,7 @@ struct CustomBottomSheetModifier<SheetContent: View>: ViewModifier {
                 ZStack(alignment: .bottom) {
                     // ── Dimming — zIndex 0, always below the sheet ─────────────────
                     if isPresented {
-                        Color.black.opacity(0.4)
+                        Color.black.opacity(0.75)
                             .ignoresSafeArea(.all)
                             .onTapGesture {
                                 withAnimation(.spring(response: 0.28, dampingFraction: 1.0)) {
@@ -109,6 +113,7 @@ struct CustomBottomSheetModifier<SheetContent: View>: ViewModifier {
                                             } else if dy < -60, !isExpanded {
                                                 withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
                                                     isExpanded = true
+                                                    forceExpanded = true
                                                     dragOffset = 0
                                                 }
                                             } else {
@@ -136,6 +141,7 @@ struct CustomBottomSheetModifier<SheetContent: View>: ViewModifier {
                                     } else if dy < -60, !isExpanded {
                                         withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
                                             isExpanded = true
+                                            forceExpanded = true
                                             dragOffset = 0
                                         }
                                     } else {
@@ -150,6 +156,14 @@ struct CustomBottomSheetModifier<SheetContent: View>: ViewModifier {
                         .onAppear {
                             dragOffset = 0
                             isExpanded = false
+                        }
+                        .onChange(of: forceExpanded) { _, newValue in
+                            if newValue, !isExpanded {
+                                withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+                                    isExpanded = true
+                                    dragOffset = 0
+                                }
+                            }
                         }
                     }
                 }
