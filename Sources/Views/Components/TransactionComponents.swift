@@ -1094,9 +1094,9 @@ struct TxIconConfig {
                 content: AnyView(Image("txn-whole-foods").resizable().scaledToFit()))
         case "Faire Wholesale":
             return TxIconConfig(
-                kind: .logoImage(border: true),
+                kind: .fullImage(border: true),
                 bg: Color.white,
-                content: AnyView(Image("txn-faire").resizable().scaledToFit()))
+                content: AnyView(Image("txn-faire").resizable().scaledToFill()))
         case "Tundra":
             return TxIconConfig(
                 kind: .fullImage(border: true),
@@ -1151,8 +1151,7 @@ struct TxIconConfig {
             return TxIconConfig(
                 kind: .fullImage(border: true),
                 bg: Color(red: 0.969, green: 0.969, blue: 0.969),
-                content: AnyView(Image("txn-blue-bottle").resizable().scaledToFill()),
-                whiteAvatarBorder: true)
+                content: AnyView(Image("txn-blue-bottle").resizable().scaledToFill()))
         case "Señor Sisig":
             return TxIconConfig(
                 kind: .logoImage(border: true),
@@ -1163,6 +1162,26 @@ struct TxIconConfig {
                 kind: .fullImage(border: false),
                 bg: Color(red: 0.0, green: 0.439, blue: 0.290),
                 content: AnyView(Image("txn-starbucks").resizable().scaledToFill()))
+        case "DoorDash":
+            return TxIconConfig(
+                kind: .logoImage(border: false),
+                bg: Color(red: 0xEB/255.0, green: 0x17/255.0, blue: 0x00/255.0),
+                content: AnyView(Image("txn-doordash").resizable().scaledToFit()))
+        case "Noissue":
+            return TxIconConfig(
+                kind: .fullImage(border: false),
+                bg: Color(red: 0x2B/255.0, green: 0x18/255.0, blue: 0x46/255.0),
+                content: AnyView(Image("txn-noissue").resizable().scaledToFill()))
+        case "Slack":
+            return TxIconConfig(
+                kind: .fullImage(border: true),
+                bg: Color.white,
+                content: AnyView(Image("txn-slack").resizable().scaledToFill()))
+        case "Staples":
+            return TxIconConfig(
+                kind: .fullImage(border: true),
+                bg: Color.white,
+                content: AnyView(Image("txn-staples").resizable().scaledToFill()))
         default:
             return TxIconConfig(
                 kind: .grayIcon,

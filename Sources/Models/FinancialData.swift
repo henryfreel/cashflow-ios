@@ -183,135 +183,136 @@ extension AppFinancials {
         var items: [Transaction] = []
 
         // ── Revenue: card payments (Square Card Sales ≈ 68 % of revenue) ─────────
-        // 14 entries (roughly double the original 7) so individual transaction
-        // amounts are smaller and more representative of daily sales patterns.
-        // Groups and singles alternate; fractions sum exactly to 1.00.
+        // 15 entries on ODD day offsets only (1,3,5,…29).  For any partial month
+        // scaledDay maps odd N → unique day N/2 so no two cards ever land on the
+        // same date.  Non-card items share these same odd days (inserted after) so
+        // each date in the list reads "card → cash/online/gift card", never "card
+        // → card".  Fractions sum to exactly 1.00.
         let cardSalesTotal = revTotal * 0.68
-        items.append(Transaction(
-            id: UUID(), date: day(2), amount: cardSalesTotal * 0.10,
-            merchantName: "Card payments (3)", subtitle: label(2),
-            locationName: "Hayes Valley", cardInfo: nil, type: .cardPaymentGroup(count: 3),
+        items.append(Transaction(id: UUID(), date: day(1),  amount: cardSalesTotal * 0.035,
+            merchantName: "Card payment",      subtitle: label(1),
+            locationName: locations[0], cardInfo: nil, type: .cardPayment,
             expenseCategory: nil, isRevenue: true))
-        items.append(Transaction(
-            id: UUID(), date: day(4), amount: cardSalesTotal * 0.07,
-            merchantName: "Card payment", subtitle: label(4),
+        items.append(Transaction(id: UUID(), date: day(3),  amount: cardSalesTotal * 0.038,
+            merchantName: "Card payment",      subtitle: label(3),
             locationName: locations[1], cardInfo: nil, type: .cardPayment,
             expenseCategory: nil, isRevenue: true))
-        items.append(Transaction(
-            id: UUID(), date: day(5), amount: cardSalesTotal * 0.05,
-            merchantName: "Card payment", subtitle: label(5),
+        items.append(Transaction(id: UUID(), date: day(5),  amount: cardSalesTotal * 0.040,
+            merchantName: "Card payment",      subtitle: label(5),
             locationName: locations[2], cardInfo: nil, type: .cardPayment,
             expenseCategory: nil, isRevenue: true))
-        items.append(Transaction(
-            id: UUID(), date: day(7), amount: cardSalesTotal * 0.09,
+        items.append(Transaction(id: UUID(), date: day(7),  amount: cardSalesTotal * 0.076,
             merchantName: "Card payments (2)", subtitle: label(7),
-            locationName: "The Mission", cardInfo: nil, type: .cardPaymentGroup(count: 2),
+            locationName: locations[0], cardInfo: nil, type: .cardPaymentGroup(count: 2),
             expenseCategory: nil, isRevenue: true))
-        items.append(Transaction(
-            id: UUID(), date: day(9), amount: cardSalesTotal * 0.07,
-            merchantName: "Card payments (2)", subtitle: label(9),
-            locationName: "Bernal Heights", cardInfo: nil, type: .cardPaymentGroup(count: 2),
-            expenseCategory: nil, isRevenue: true))
-        items.append(Transaction(
-            id: UUID(), date: day(11), amount: cardSalesTotal * 0.05,
-            merchantName: "Card payment", subtitle: label(11),
-            locationName: locations[0], cardInfo: nil, type: .cardPayment,
-            expenseCategory: nil, isRevenue: true))
-        items.append(Transaction(
-            id: UUID(), date: day(13), amount: cardSalesTotal * 0.06,
-            merchantName: "Card payment", subtitle: label(13),
+        items.append(Transaction(id: UUID(), date: day(9),  amount: cardSalesTotal * 0.042,
+            merchantName: "Card payment",      subtitle: label(9),
             locationName: locations[1], cardInfo: nil, type: .cardPayment,
             expenseCategory: nil, isRevenue: true))
-        items.append(Transaction(
-            id: UUID(), date: day(15), amount: cardSalesTotal * 0.07,
+        items.append(Transaction(id: UUID(), date: day(11), amount: cardSalesTotal * 0.155,
+            merchantName: "Card payments (4)", subtitle: label(11),
+            locationName: locations[2], cardInfo: nil, type: .cardPaymentGroup(count: 4),
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(id: UUID(), date: day(13), amount: cardSalesTotal * 0.040,
+            merchantName: "Card payment",      subtitle: label(13),
+            locationName: locations[0], cardInfo: nil, type: .cardPayment,
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(id: UUID(), date: day(15), amount: cardSalesTotal * 0.082,
             merchantName: "Card payments (2)", subtitle: label(15),
-            locationName: "Hayes Valley", cardInfo: nil, type: .cardPaymentGroup(count: 2),
+            locationName: locations[1], cardInfo: nil, type: .cardPaymentGroup(count: 2),
             expenseCategory: nil, isRevenue: true))
-        items.append(Transaction(
-            id: UUID(), date: day(18), amount: cardSalesTotal * 0.10,
-            merchantName: "Card payments (3)", subtitle: label(18),
-            locationName: "Bernal Heights", cardInfo: nil, type: .cardPaymentGroup(count: 3),
-            expenseCategory: nil, isRevenue: true))
-        items.append(Transaction(
-            id: UUID(), date: day(20), amount: cardSalesTotal * 0.06,
-            merchantName: "Card payment", subtitle: label(20),
+        items.append(Transaction(id: UUID(), date: day(17), amount: cardSalesTotal * 0.038,
+            merchantName: "Card payment",      subtitle: label(17),
             locationName: locations[2], cardInfo: nil, type: .cardPayment,
             expenseCategory: nil, isRevenue: true))
-        items.append(Transaction(
-            id: UUID(), date: day(22), amount: cardSalesTotal * 0.08,
-            merchantName: "Card payments (2)", subtitle: label(22),
-            locationName: "The Mission", cardInfo: nil, type: .cardPaymentGroup(count: 2),
+        items.append(Transaction(id: UUID(), date: day(19), amount: cardSalesTotal * 0.118,
+            merchantName: "Card payments (3)", subtitle: label(19),
+            locationName: locations[0], cardInfo: nil, type: .cardPaymentGroup(count: 3),
             expenseCategory: nil, isRevenue: true))
-        items.append(Transaction(
-            id: UUID(), date: day(24), amount: cardSalesTotal * 0.05,
-            merchantName: "Card payment", subtitle: label(24),
+        items.append(Transaction(id: UUID(), date: day(21), amount: cardSalesTotal * 0.042,
+            merchantName: "Card payment",      subtitle: label(21),
+            locationName: locations[1], cardInfo: nil, type: .cardPayment,
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(id: UUID(), date: day(23), amount: cardSalesTotal * 0.080,
+            merchantName: "Card payments (2)", subtitle: label(23),
+            locationName: locations[2], cardInfo: nil, type: .cardPaymentGroup(count: 2),
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(id: UUID(), date: day(25), amount: cardSalesTotal * 0.040,
+            merchantName: "Card payment",      subtitle: label(25),
             locationName: locations[0], cardInfo: nil, type: .cardPayment,
             expenseCategory: nil, isRevenue: true))
-        items.append(Transaction(
-            id: UUID(), date: day(26), amount: cardSalesTotal * 0.08,
-            merchantName: "Card payments (2)", subtitle: label(26),
-            locationName: "Hayes Valley", cardInfo: nil, type: .cardPaymentGroup(count: 2),
+        items.append(Transaction(id: UUID(), date: day(27), amount: cardSalesTotal * 0.122,
+            merchantName: "Card payments (3)", subtitle: label(27),
+            locationName: locations[1], cardInfo: nil, type: .cardPaymentGroup(count: 3),
             expenseCategory: nil, isRevenue: true))
-        items.append(Transaction(
-            id: UUID(), date: day(28), amount: cardSalesTotal * 0.07,
-            merchantName: "Card payment", subtitle: label(28),
-            locationName: locations[1], cardInfo: nil, type: .cardPayment,
+        items.append(Transaction(id: UUID(), date: day(29), amount: cardSalesTotal * 0.052,
+            merchantName: "Card payment",      subtitle: label(29),
+            locationName: locations[2], cardInfo: nil, type: .cardPayment,
             expenseCategory: nil, isRevenue: true))
 
-        // ── Revenue: Online Store (18 %) ──────────────────────────────────────────
-        // 3 orders spread across the month; fractions sum to 1.00.
+        // ── Revenue: Online Payments (18 %) ───────────────────────────────────────
+        // 5 payments on EVEN days — each pairs with the preceding odd-day card so
+        // every calendar date has both revenue types. Fractions sum to 1.00.
         let onlineTotal = revTotal * 0.18
-        items.append(Transaction(
-            id: UUID(), date: day(6), amount: onlineTotal * 0.38,
-            merchantName: "Online payment", subtitle: label(6),
+        items.append(Transaction(id: UUID(), date: day(4),  amount: onlineTotal * 0.22,
+            merchantName: "Online payment", subtitle: label(4),
             locationName: nil, cardInfo: nil, type: .onlineOrder,
             expenseCategory: nil, isRevenue: true))
-        items.append(Transaction(
-            id: UUID(), date: day(14), amount: onlineTotal * 0.34,
-            merchantName: "Online payment", subtitle: label(14),
+        items.append(Transaction(id: UUID(), date: day(10), amount: onlineTotal * 0.20,
+            merchantName: "Online payment", subtitle: label(10),
             locationName: nil, cardInfo: nil, type: .onlineOrder,
             expenseCategory: nil, isRevenue: true))
-        items.append(Transaction(
-            id: UUID(), date: day(23), amount: onlineTotal * 0.28,
-            merchantName: "Online payment", subtitle: label(23),
+        items.append(Transaction(id: UUID(), date: day(18), amount: onlineTotal * 0.18,
+            merchantName: "Online payment", subtitle: label(18),
+            locationName: nil, cardInfo: nil, type: .onlineOrder,
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(id: UUID(), date: day(24), amount: onlineTotal * 0.22,
+            merchantName: "Online payment", subtitle: label(24),
+            locationName: nil, cardInfo: nil, type: .onlineOrder,
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(id: UUID(), date: day(28), amount: onlineTotal * 0.18,
+            merchantName: "Online payment", subtitle: label(28),
             locationName: nil, cardInfo: nil, type: .onlineOrder,
             expenseCategory: nil, isRevenue: true))
 
         // ── Revenue: Cash Sales (10 %) ────────────────────────────────────────────
-        // 4 cash payments, one per week; fractions sum to 1.00.
+        // 6 payments on even days, each a different day from online/gift card.
+        // Fractions sum to 1.00.
         let cashTotal = revTotal * 0.10
-        items.append(Transaction(
-            id: UUID(), date: day(5), amount: cashTotal * 0.28,
-            merchantName: "Cash payment", subtitle: label(5),
-            locationName: locations[0], cardInfo: nil, type: .cashPayment,
-            expenseCategory: nil, isRevenue: true))
-        items.append(Transaction(
-            id: UUID(), date: day(12), amount: cashTotal * 0.26,
-            merchantName: "Cash payment", subtitle: label(12),
-            locationName: locations[1], cardInfo: nil, type: .cashPayment,
-            expenseCategory: nil, isRevenue: true))
-        items.append(Transaction(
-            id: UUID(), date: day(19), amount: cashTotal * 0.24,
-            merchantName: "Cash payment", subtitle: label(19),
+        items.append(Transaction(id: UUID(), date: day(2),  amount: cashTotal * 0.18,
+            merchantName: "Cash payment", subtitle: label(2),
             locationName: locations[2], cardInfo: nil, type: .cashPayment,
             expenseCategory: nil, isRevenue: true))
-        items.append(Transaction(
-            id: UUID(), date: day(27), amount: cashTotal * 0.22,
-            merchantName: "Cash payment", subtitle: label(27),
+        items.append(Transaction(id: UUID(), date: day(8),  amount: cashTotal * 0.20,
+            merchantName: "Cash payment", subtitle: label(8),
             locationName: locations[0], cardInfo: nil, type: .cashPayment,
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(id: UUID(), date: day(14), amount: cashTotal * 0.17,
+            merchantName: "Cash payment", subtitle: label(14),
+            locationName: locations[1], cardInfo: nil, type: .cashPayment,
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(id: UUID(), date: day(20), amount: cashTotal * 0.18,
+            merchantName: "Cash payment", subtitle: label(20),
+            locationName: locations[2], cardInfo: nil, type: .cashPayment,
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(id: UUID(), date: day(26), amount: cashTotal * 0.15,
+            merchantName: "Cash payment", subtitle: label(26),
+            locationName: locations[0], cardInfo: nil, type: .cashPayment,
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(id: UUID(), date: day(30), amount: cashTotal * 0.12,
+            merchantName: "Cash payment", subtitle: label(30),
+            locationName: locations[1], cardInfo: nil, type: .cashPayment,
             expenseCategory: nil, isRevenue: true))
 
         // ── Revenue: Gift Cards (4 %) ─────────────────────────────────────────────
-        // 2 gift card sales per month; fractions sum to 1.00.
+        // 2 sales on even days not used by online or cash. Fractions sum to 1.00.
         let giftCardTotal = revTotal * 0.04
-        items.append(Transaction(
-            id: UUID(), date: day(10), amount: giftCardTotal * 0.55,
-            merchantName: "Gift card", subtitle: label(10),
-            locationName: locations[1], cardInfo: nil, type: .giftCard,
+        items.append(Transaction(id: UUID(), date: day(6),  amount: giftCardTotal * 0.55,
+            merchantName: "Gift card", subtitle: label(6),
+            locationName: locations[0], cardInfo: nil, type: .giftCard,
             expenseCategory: nil, isRevenue: true))
-        items.append(Transaction(
-            id: UUID(), date: day(25), amount: giftCardTotal * 0.45,
-            merchantName: "Gift card", subtitle: label(25),
+        items.append(Transaction(id: UUID(), date: day(22), amount: giftCardTotal * 0.45,
+            merchantName: "Gift card", subtitle: label(22),
             locationName: locations[2], cardInfo: nil, type: .giftCard,
             expenseCategory: nil, isRevenue: true))
 
@@ -321,38 +322,40 @@ extension AppFinancials {
         // COGS is spread across six vendors so the daily chart stays balanced.
         // Fractions sum to 1.00. All other months use the normal spread below.
         if month == 5 {
+            // UPS reduced from ~$6,900 → ~$902 (0.0144) and Home Depot from ~$5,600 → ~$647 (0.0104).
+            // The freed ~$11k is redistributed equally (+0.0438 each) across the four main vendors.
             items.append(Transaction(
-                id: UUID(), date: day(3), amount: -expB.cogs * 0.20,
+                id: UUID(), date: day(3), amount: -expB.cogs * 0.2438,
                 merchantName: "Tundra", subtitle: label(3),
                 locationName: "Hayes Valley", cardInfo: "Square Card 4812", type: .purchase,
                 expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
             items.append(Transaction(
-                id: UUID(), date: day(8), amount: -expB.cogs * 0.16,
+                id: UUID(), date: day(8), amount: -expB.cogs * 0.2038,
                 merchantName: "Faire Wholesale", subtitle: label(8),
                 locationName: nil, cardInfo: "Visa 7832", type: .purchase,
                 expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
             items.append(Transaction(
-                id: UUID(), date: day(12), amount: -expB.cogs * 0.12,
+                id: UUID(), date: day(12), amount: -expB.cogs * 0.1638,
                 merchantName: "Faire Wholesale", subtitle: label(12),
                 locationName: nil, cardInfo: "Visa 7832", type: .purchase,
                 expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
             items.append(Transaction(
-                id: UUID(), date: day(16), amount: -expB.cogs * 0.18,
+                id: UUID(), date: day(16), amount: -expB.cogs * 0.2238,
                 merchantName: "Next Level Apparel", subtitle: label(16),
                 locationName: nil, cardInfo: "Square Card 4812", type: .purchase,
                 expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
             items.append(Transaction(
                 id: UUID(), date: day(21), amount: -expB.cogs * 0.14,
-                merchantName: "Whole Foods", subtitle: label(21),
+                merchantName: "Noissue", subtitle: label(21),
                 locationName: "Bernal Heights", cardInfo: "Visa 7832", type: .purchase,
                 expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
             items.append(Transaction(
-                id: UUID(), date: day(25), amount: -expB.cogs * 0.11,
+                id: UUID(), date: day(25), amount: -expB.cogs * 0.0144,
                 merchantName: "UPS", subtitle: label(25),
                 locationName: nil, cardInfo: "Square Card 4812", type: .purchase,
                 expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
             items.append(Transaction(
-                id: UUID(), date: day(28), amount: -expB.cogs * 0.09,
+                id: UUID(), date: day(28), amount: -expB.cogs * 0.0104,
                 merchantName: "Home Depot", subtitle: label(28),
                 locationName: "The Mission", cardInfo: "Amex 5678", type: .purchase,
                 expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
@@ -375,7 +378,7 @@ extension AppFinancials {
                 expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
             items.append(Transaction(
                 id: UUID(), date: day(20), amount: -expB.cogs * 0.12,
-                merchantName: "Whole Foods", subtitle: label(20),
+                merchantName: "Noissue", subtitle: label(20),
                 locationName: "Bernal Heights", cardInfo: "Visa 7832", type: .purchase,
                 expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
             items.append(Transaction(
@@ -448,7 +451,7 @@ extension AppFinancials {
         // ── Expenses: Misc — card purchases ────────────────────────────────────────
         items.append(Transaction(
             id: UUID(), date: day(6), amount: -expB.misc * 0.22,
-            merchantName: "Blue Bottle Coffee", subtitle: label(6),
+            merchantName: "Staples", subtitle: label(6),
             locationName: "Hayes Valley", cardInfo: "Square Card 4812", type: .purchase,
             expenseCategory: ExpenseCategory.officeSupplies.rawValue, isRevenue: false))
         items.append(Transaction(
@@ -458,7 +461,7 @@ extension AppFinancials {
             expenseCategory: ExpenseCategory.officeSupplies.rawValue, isRevenue: false))
         items.append(Transaction(
             id: UUID(), date: day(19), amount: -expB.misc * 0.25,
-            merchantName: "Starbucks", subtitle: label(19),
+            merchantName: "Slack", subtitle: label(19),
             locationName: "Hayes Valley", cardInfo: "Square Card 4812", type: .purchase,
             expenseCategory: ExpenseCategory.officeSupplies.rawValue, isRevenue: false))
         items.append(Transaction(
@@ -466,6 +469,45 @@ extension AppFinancials {
             merchantName: "Airtable", subtitle: label(24),
             locationName: nil, cardInfo: "Square Card 4812", type: .purchase,
             expenseCategory: ExpenseCategory.officeSupplies.rawValue, isRevenue: false))
+
+        // ── Personal expenses (excluded from all P&L charts and calculations) ──────
+        // These are owner personal purchases that appear naturally in the transaction
+        // list but never affect revenue, expenses, or net profit.
+        let personalCard = "Visa 7832"
+        // Blue Bottle Coffee — coffee runs, ~$6–$9 each, most days of the month
+        let bluBottleDays: [(Int, Double)] = [
+            (2, 7.50), (4, 6.25), (6, 8.75), (8, 5.50), (10, 7.25),
+            (12, 9.00), (14, 6.75), (16, 8.25), (18, 7.00), (20, 8.50)
+        ]
+        for (d, amt) in bluBottleDays {
+            items.append(Transaction(
+                id: UUID(), date: day(d), amount: -amt,
+                merchantName: "Blue Bottle Coffee", subtitle: label(d),
+                locationName: "Hayes Valley", cardInfo: personalCard, type: .purchase,
+                expenseCategory: ExpenseCategory.personal.rawValue, isRevenue: false))
+        }
+        // DoorDash — lunch/dinner deliveries, ~$35–$65 each, a few times a week
+        let doordashDays: [(Int, Double)] = [
+            (3, 42.50), (7, 38.75), (11, 55.00), (17, 47.25), (23, 61.50), (27, 35.00)
+        ]
+        for (d, amt) in doordashDays {
+            items.append(Transaction(
+                id: UUID(), date: day(d), amount: -amt,
+                merchantName: "DoorDash", subtitle: label(d),
+                locationName: nil, cardInfo: personalCard, type: .purchase,
+                expenseCategory: ExpenseCategory.personal.rawValue, isRevenue: false))
+        }
+        // Whole Foods — grocery runs, ~$45–$85 each, once a week or so
+        let wholeFoodsDays: [(Int, Double)] = [
+            (5, 68.40), (13, 45.75), (21, 82.50), (29, 52.30)
+        ]
+        for (d, amt) in wholeFoodsDays {
+            items.append(Transaction(
+                id: UUID(), date: day(d), amount: -amt,
+                merchantName: "Whole Foods", subtitle: label(d),
+                locationName: nil, cardInfo: personalCard, type: .purchase,
+                expenseCategory: ExpenseCategory.personal.rawValue, isRevenue: false))
+        }
 
         // ── Automated transfers (savings sweep, loan payment) ─────────────────────
         items.append(Transaction(

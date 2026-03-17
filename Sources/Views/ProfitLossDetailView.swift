@@ -883,7 +883,7 @@ struct ProfitLossDetailView: View {
                         let arrow = pct >= 0 ? "↑" : "↓"
                         Text("(\(arrow)\(Int(abs(pct).rounded()))%)")
                             .font(.paragraphSemibold20)
-                            .foregroundStyle(Color.gray3)
+                            .foregroundStyle(yoySubtitleColor(pct))
                     }
                 }
             }
@@ -1180,6 +1180,7 @@ struct ProfitLossDetailView: View {
                     indicator: .revenue,
                     title: revTitle,
                     subtitle: isFutureScrub ? "↑ Change from last year TBD" : (hasPrev ? yoyLabel(revYoy, up: true) + " \(yoySuffix)" : nil),
+                    subtitleColor: isFutureScrub ? Color.gray3 : yoySubtitleColor(revYoy),
                     value: fmt(revValue),
                     valueFont: .paragraphSemibold30,
                     noPreviousData: !hasPrev && !isFutureScrub,
@@ -1191,6 +1192,7 @@ struct ProfitLossDetailView: View {
                     indicator: .expenses,
                     title: expTitle,
                     subtitle: isFutureScrub ? "↓ Change from last year TBD" : (hasPrev ? yoyLabel(expYoy, up: false) + " \(yoySuffix)" : nil),
+                    subtitleColor: isFutureScrub ? Color.gray3 : yoySubtitleColor(expYoy),
                     value: fmt(expValue),
                     valuePrefix: "-",
                     valueFont: .paragraphSemibold30,
@@ -1204,6 +1206,7 @@ struct ProfitLossDetailView: View {
                 subtitle: isFutureScrub
                     ? (netIndicator.isExpenseKind ? "↓ Change from last year TBD" : "↑ Change from last year TBD")
                     : (hasPrev ? yoyLabel(netYoy, up: netYoy >= 0) + " \(yoySuffix)" : nil),
+                subtitleColor: isFutureScrub ? Color.gray3 : yoySubtitleColor(netYoy),
                 value: fmt(netValue),
                 valuePrefix: netValuePrefix,
                 valueFont: netValueFont,
@@ -1229,6 +1232,7 @@ struct ProfitLossDetailView: View {
     private func metricRow(indicator: IndicatorKind,
                             title: String,
                             subtitle: String?,
+                            subtitleColor: Color = Color.gray3,
                             value: String,
                             valuePrefix: String = "",
                             valueFont: Font,
@@ -1292,7 +1296,7 @@ struct ProfitLossDetailView: View {
                     } else if let s = subtitle {
                         Text(s)
                             .font(.paragraph20)
-                            .foregroundStyle(Color.gray3)
+                            .foregroundStyle(subtitleColor)
                     }
                 }
                 .frame(height: 22, alignment: .leading)
@@ -1397,6 +1401,13 @@ struct ProfitLossDetailView: View {
     private func yoyLabel(_ pct: Double, up: Bool) -> String {
         let arrow = up ? "↑" : "↓"
         return "\(arrow) \(Int(abs(pct).rounded()))%"
+    }
+
+    /// Color for a YoY percentage label. ≥+50 % → green3, ≤−50 % → red3, else gray3.
+    private func yoySubtitleColor(_ pct: Double) -> Color {
+        if pct >= 50  { return Color.green3 }
+        if pct <= -50 { return Color.red3   }
+        return Color.gray3
     }
 }
 
