@@ -194,10 +194,10 @@ struct TxAllFiltersSheet: View {
             .frame(height: 48)
 
             VStack(spacing: 0) {
-                AllFiltersRow(label: "Location", value: displayValue(locationKeys)) { drillInto(.location) }
-                AllFiltersRow(label: "Date",     value: computedDateValue)          { drillInto(.date) }
-                AllFiltersRow(label: "Cashflow", value: displayValue(cashflowKeys)) { drillInto(.cashflow) }
-                AllFiltersRow(label: "Category", value: displayValue(categoryKeys)) { drillInto(.category) }
+                AllFiltersRow(label: "Location", value: displayValue(locationKeys, options: locationOptions)) { drillInto(.location) }
+                AllFiltersRow(label: "Date",     value: computedDateValue)                                   { drillInto(.date) }
+                AllFiltersRow(label: "Cashflow", value: displayValue(cashflowKeys, options: cashflowOptions)) { drillInto(.cashflow) }
+                AllFiltersRow(label: "Category", value: displayValue(categoryKeys, options: categoryOptions)) { drillInto(.category) }
             }
         }
         .padding(.horizontal, 24)
@@ -261,10 +261,10 @@ struct TxAllFiltersSheet: View {
         }
     }
 
-    private func displayValue(_ keys: Set<String>) -> String {
+    private func displayValue(_ keys: Set<String>, options: [TxFilterOption] = []) -> String {
         switch keys.count {
         case 0:  return "All"
-        case 1:  return keys.first!
+        case 1:  return TransactionsView.label(forKey: keys.first!, in: options)
         default: return "\(keys.count) selected"
         }
     }

@@ -78,13 +78,19 @@ struct TransactionsView: View {
         // ── Revenue ───────────────────────────────────────────────────────────
         opts.append(.header("REVENUE"))
         opts += [
-            TxFilterOption(id: revCardKey,  label: "Card payment"),
-            TxFilterOption(id: revGiftCard, label: "Gift card"),
-            TxFilterOption(id: revOnline,   label: "Online payment"),
-            TxFilterOption(id: revCash,     label: "Cash payment"),
+            TxFilterOption(id: revCardKey,  label: "Card payments"),
+            TxFilterOption(id: revGiftCard, label: "Gift cards"),
+            TxFilterOption(id: revOnline,   label: "Online payments"),
+            TxFilterOption(id: revCash,     label: "Cash payments"),
         ]
         return opts
     }()
+
+    /// Resolves a raw filter key to its display label by looking it up in the
+    /// relevant options list. Falls back to the raw key if not found.
+    static func label(forKey key: String, in options: [TxFilterOption]) -> String {
+        options.first(where: { $0.id == key })?.label ?? key
+    }
 
     private func options(for f: TxActiveFilter) -> [TxFilterOption] {
         switch f {
@@ -106,10 +112,10 @@ struct TransactionsView: View {
 
     // MARK: Chip display values
 
-    private func chipValue(_ keys: Set<String>) -> String? {
+    private func chipValue(_ keys: Set<String>, options: [TxFilterOption] = []) -> String? {
         switch keys.count {
         case 0:  return nil
-        case 1:  return keys.first
+        case 1:  return Self.label(forKey: keys.first!, in: options)
         default: return "\(keys.count) selected"
         }
     }
@@ -353,9 +359,9 @@ struct TransactionsView: View {
             // Filter bar is outside the ScrollView so it stays fixed while the list scrolls
             TxFilterBar(
                 periodLabel:      dateLabelValue ?? "",
-                cashflow:         chipValue(selectedCashflows) ?? "All",
-                category:         chipValue(selectedCategories),
-                location:         chipValue(selectedLocations),
+                cashflow:         chipValue(selectedCashflows, options: Self.cashflowOptions) ?? "All",
+                category:         chipValue(selectedCategories, options: Self.categoryOptions),
+                location:         chipValue(selectedLocations,  options: Self.locationOptions),
                 hasFilters:       hasFilters,
                 transactionCount: displayItems.count,
                 onClear: {
@@ -411,6 +417,20 @@ struct TransactionsView: View {
         .onChange(of: searchText)         { _, _ in visibleCount = 15 }
         .onChange(of: isSearching) { _, searching in
             if !searching { searchText = "" }
+        }
+        .onChange(of: navState.selectedTab) { _, tab in
+            // Resign first responder at the UIKit level when leaving this tab.
+            // This prevents the TextField (kept alive at opacity 0) from leaking
+            // keyboard focus to the destination tab, while preserving all filter
+            // state so it's intact when the user returns via the tab bar.
+            // Filters are only reset by navigating here from a P&L detail page
+            // (which changes txFilterKey and recreates the view with fresh state).
+            if tab != .transactions {
+                UIApplication.shared.sendAction(
+                    #selector(UIResponder.resignFirstResponder),
+                    to: nil, from: nil, for: nil
+                )
+            }
         }
     }
 }

@@ -558,8 +558,20 @@ private struct ProfitLossCard: View {
                     .clipShape(Capsule())
                     .onTapGesture {
                         if period == selectedPeriod {
-                            useSlide = false
-                            withAnimation(.easeOut(duration: 0.2)) {
+                            // Slide forward (today is ahead of where we are) if we're
+                            // currently in the past; no-op animation if already at today.
+                            let alreadyAtToday: Bool = {
+                                switch selectedPeriod {
+                                case "1M": return selectedYear == AppFinancials.currentYear
+                                               && selectedMonth == AppFinancials.currentMonth
+                                case "1Q": return selectedYear == AppFinancials.currentYear
+                                               && selectedQuarter == AppFinancials.currentQuarter
+                                default:   return selectedYear == AppFinancials.currentYear
+                                }
+                            }()
+                            slideLeft = true   // jumping to today = moving forward in time
+                            useSlide  = !alreadyAtToday
+                            withAnimation(.easeOut(duration: 0.3)) {
                                 activeBarIndex  = nil
                                 selectedYear    = AppFinancials.currentYear
                                 selectedMonth   = AppFinancials.currentMonth

@@ -1346,14 +1346,37 @@ struct ProfitLossDetailView: View {
 
     // MARK: View All Button
 
+    /// Maps a RevenueCategory display name to the "rev:" prefixed key used by
+    /// TransactionsView's catOk filter. Returns nil for unknown names (falls
+    /// back to no category filter).
+    private func txRevKey(for revCategoryName: String) -> String? {
+        switch revCategoryName {
+        case RevenueCategory.squareCard.rawValue: return TransactionsView.revCardKey
+        case RevenueCategory.online.rawValue:     return TransactionsView.revOnline
+        case RevenueCategory.cash.rawValue:       return TransactionsView.revCash
+        case RevenueCategory.giftCard.rawValue:   return TransactionsView.revGiftCard
+        default:                                  return nil
+        }
+    }
+
     private var viewAllButton: some View {
         let enabled = hasDataForPeriod
         return Button {
             guard enabled else { return }
+            // For revenue category pages, translate the display name to the "rev:" key
+            // that TransactionsView's filter logic expects. For expense pages the raw
+            // expense category name matches directly.
+            let categoryKey: String? = {
+                guard !showRevenueExpensesCard else { return nil }
+                if pageTitle == "Revenue" {
+                    return txRevKey(for: selectedCategoryName)
+                }
+                return selectedCategoryName.isEmpty ? nil : selectedCategoryName
+            }()
             navState?.txFilter = TxFilter(
                 periodLabel: periodNavTitle,
                 cashflow:    transactionCashflow,
-                category:    showRevenueExpensesCard ? nil : selectedCategoryName
+                category:    categoryKey
             )
             navState?.selectedTab = .transactions
         } label: {

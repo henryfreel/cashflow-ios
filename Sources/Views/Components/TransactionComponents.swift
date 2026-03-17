@@ -111,6 +111,14 @@ struct TxFilterBar: View {
                         .overlay(alignment: .leading) {
                             HStack(spacing: 12) {
                                 Button {
+                                    // Resign first responder synchronously at the UIKit level
+                                    // before the SwiftUI animation starts. SwiftUI's @FocusState
+                                    // removal is deferred to the next layout pass, which leaves
+                                    // the keyboard active long enough to leak to other tabs.
+                                    UIApplication.shared.sendAction(
+                                        #selector(UIResponder.resignFirstResponder),
+                                        to: nil, from: nil, for: nil
+                                    )
                                     searchText = ""
                                     withAnimation(.easeInOut(duration: 0.25)) { isSearching = false }
                                 } label: {
@@ -893,9 +901,13 @@ struct TxIconConfig {
                         .foregroundStyle(Color.gray1)
                   )
                 : AnyView(
-                    Image(systemName: "arrow.up.right")
-                        .font(.system(size: 13, weight: .semibold))
+                    // Figma SVG: ~15×15pt art scaled to fill 24pt container.
+                    // At 2× scaleEffect in TxDetailIcon: fills 48pt container.
+                    Image("TxTransferOutIcon")
+                        .resizable().renderingMode(.template)
+                        .scaledToFit()
                         .foregroundStyle(Color.gray1)
+                        .frame(width: 24, height: 24)
                   )
             return TxIconConfig(
                 kind: .grayIcon,
@@ -911,9 +923,13 @@ struct TxIconConfig {
                 content: AnyView(
                     isOutgoing
                         ? AnyView(
-                            Image(systemName: "arrow.up.right")
-                                .font(.system(size: 13, weight: .semibold))
+                            // Figma SVG: ~15×15pt art scaled to fill 24pt container.
+                            // At 2× scaleEffect in TxDetailIcon: fills 48pt container.
+                            Image("TxTransferOutIcon")
+                                .resizable().renderingMode(.template)
+                                .scaledToFit()
                                 .foregroundStyle(Color.gray1)
+                                .frame(width: 24, height: 24)
                           )
                         : AnyView(
                             Image("TxCycleIcon")
