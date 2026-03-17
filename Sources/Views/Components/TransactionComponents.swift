@@ -64,9 +64,6 @@ struct TxFilterBar: View {
     // accidentally trigger the keyboard before the user taps.
     @State private var isPrewarming: Bool = false
 
-    // Dummy value animated on appear to pre-initialise SwiftUI's animation pipeline.
-    @State private var _swiftUIWarmup: Bool = false
-
     private var activeFilterCount: Int {
         (periodLabel.isEmpty ? 0 : 1)
         + (cashflow == "All" || cashflow.isEmpty ? 0 : 1)
@@ -279,7 +276,6 @@ struct TxFilterBar: View {
 
         } // VStack
         .padding(.bottom, showCountRowLayout ? 8 : 16)
-        .background(CAAnimationWarmer().frame(width: 0, height: 0))
         .onChange(of: showCountRow, initial: true) { _, newValue in
             if newValue {
                 // Either filters or search is active: sync count and expand layout immediately.
@@ -307,69 +303,25 @@ struct TxFilterBar: View {
             }
         }
         .onAppear {
-            // Stage 1: pre-warm both SwiftUI layout states without animating,
-            // so the geometry cache is hot before the first real tap.
+            // Pre-warm the EXACT animation path the user will trigger on first tap:
+            // animate isSearching true→false at near-zero duration (0.0001 s < one frame)
+            // so it's invisible but forces SwiftUI to compile Metal shaders, start the
+            // CA display link, and cache geometry for the real view subtree.
+            // isPrewarming suppresses keyboard focus during the silent toggle.
             isPrewarming = true
-            var t = SwiftUI.Transaction(animation: nil)
-            t.disablesAnimations = true
-            withTransaction(t) { isSearching = true }
-            DispatchQueue.main.async {
-                withTransaction(t) { isSearching = false }
-                isPrewarming = false
-
-                // Stage 2: fire a real SwiftUI animation (same curve/duration as the
-                // chip transition) on an invisible value to pre-initialise SwiftUI's
-                // animation scheduler and CA transaction pipeline.
-                withAnimation(.easeInOut(duration: 0.25)) { _swiftUIWarmup = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                withAnimation(.easeInOut(duration: 0.0001)) { isSearching = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    withAnimation(.easeInOut(duration: 0.0001)) { isSearching = false }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        isPrewarming = false
+                    }
+                }
             }
         }
-        // The warmed value is applied to a zero-size invisible view so it has
-        // no visual effect but still exercises the full animation code path.
-        .background(
-            Color.clear
-                .frame(width: 0, height: 0)
-                .opacity(_swiftUIWarmup ? 1 : 0)
-        )
     }
 }
 
-// MARK: - Core Animation warm-up helper
-
-/// Primes Core Animation's render server and display link on first appear.
-///
-/// The previous approach used `withDuration: 0.001` which is too short to
-/// actually start the display link — the render server never wakes up, so the
-/// first real animation is still slow.  Two steps are needed:
-///   1. `CATransaction.flush()` immediately commits a layer change, waking the
-///      render server process before the user touches anything.
-///   2. `UIView.animate` with the *same* duration and curve as the chip
-///      transition (0.25 s, ease-in-out) runs the display link for a full
-///      animation cycle so it is already spinning on first tap.
-private struct CAAnimationWarmer: UIViewRepresentable {
-    func makeUIView(context: Context) -> UIView {
-        let v = UIView(frame: .zero)
-        v.isUserInteractionEnabled = false
-        DispatchQueue.main.async {
-            // Step 1 — wake the render server immediately.
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            v.layer.opacity = 0.9999
-            CATransaction.commit()
-            CATransaction.flush()
-
-            // Step 2 — run a full-duration easeInOut matching the chip transition
-            // so the display link is already live when the user first taps.
-            UIView.animate(
-                withDuration: 0.25, delay: 0,
-                options: [.curveEaseInOut, .allowUserInteraction]
-            ) {
-                v.layer.opacity = 1.0
-            }
-        }
-        return v
-    }
-    func updateUIView(_ uiView: UIView, context: Context) {}
-}
 
 // MARK: - Morph chip: Location filter ↔ All Filters button
 

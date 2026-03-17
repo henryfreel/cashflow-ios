@@ -12,6 +12,9 @@ struct TransactionDetailView: View {
     @State private var localCategory: String?
     @State private var showingCategoryPicker  = false
     @State private var categorySheetExpanded  = false
+    @State private var showCategoryToast      = false
+    @State private var pendingCategoryToast   = false   // flag set in onSelect, consumed on sheet close
+    @State private var toastTask: Task<Void, Never>? = nil
 
     init(transaction: Transaction) {
         self.transaction = transaction
@@ -114,8 +117,12 @@ struct TransactionDetailView: View {
                     || name.contains("pg&e") || name.contains("comcast") {
                     candidates = [.rentUtilities, .taxesLicenses, .officeSupplies, .laborPayroll,
                                   .cogs, .marketing, .transportation, .sales]
-                } else if name.contains("starbucks") || name.contains("blue bottle")
-                    || name.contains("airtable") {
+                } else if name.contains("blue bottle") || name.contains("doordash")
+                    || name.contains("whole foods") {
+                    // Known personal merchants — keep Personal visible even after reclassifying.
+                    candidates = [.personal, .officeSupplies, .cogs, .marketing,
+                                  .rentUtilities, .laborPayroll, .transportation, .taxesLicenses]
+                } else if name.contains("starbucks") || name.contains("airtable") {
                     candidates = [.officeSupplies, .marketing, .cogs, .transportation,
                                   .rentUtilities, .laborPayroll, .taxesLicenses, .sales]
                 } else {
@@ -392,7 +399,8 @@ struct TransactionDetailView: View {
                     localCategory = selected.rawValue
                     // Persist to the session store so charts update immediately.
                     txStore.setCategory(selected, for: transaction.id)
-                    showingCategoryPicker = false
+                    // Mark that a toast should fire once the sheet is fully gone.
+                    pendingCategoryToast = true
                 },
                 onDone: {
                     showingCategoryPicker = false
@@ -405,7 +413,57 @@ struct TransactionDetailView: View {
             )
         }
         .onChange(of: showingCategoryPicker) { _, shown in
-            if !shown { categorySheetExpanded = false }
+            if !shown {
+                categorySheetExpanded = false
+                // Fire the toast only if a category change was committed.
+                // Wait for the sheet's spring dismiss (response 0.38 s) to fully
+                // complete before sliding the toast in.
+                guard pendingCategoryToast else { return }
+                pendingCategoryToast = false
+                toastTask?.cancel()
+                toastTask = Task {
+                    try? await Task.sleep(for: .seconds(0.2))
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                            showCategoryToast = true
+                        }
+                    }
+                    // Auto-dismiss after 1.8 s.
+                    try? await Task.sleep(for: .seconds(1.8))
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                            showCategoryToast = false
+                        }
+                    }
+                }
+            }
+        }
+        // Toast — floats above all other content including the category sheet.
+        // allowsHitTesting(false) on the surrounding frame so the transparent
+        // area never blocks swipe-to-dismiss on the modal.
+        .overlay(alignment: .bottom) {
+            ZStack {
+                if showCategoryToast {
+                    TxCategoryToast {
+                        toastTask?.cancel()
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                            showCategoryToast = false
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 16)
+                    .transition(
+                        .asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal:   .move(edge: .bottom).combined(with: .opacity)
+                        )
+                    )
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .allowsHitTesting(showCategoryToast)
         }
     }
 
@@ -529,7 +587,7 @@ struct TransactionDetailView: View {
     }
 
     private func categoryPill(name: String, isDisabled: Bool = false) -> some View {
-        let fg: Color = isDisabled ? Color.gray4 : Color.gray1
+        let fg: Color = isDisabled ? Color.gray3 : Color.gray1
         let bg: Color = isDisabled ? Color.gray6 : Color.white
         return HStack(spacing: 8) {
             Image(categoryAsset)
@@ -638,8 +696,10 @@ struct CategoryPickerSheet: View {
     /// Set to true when the sheet is expanded externally (e.g. via drag-up gesture).
     var isSheetExpanded: Bool = false
 
-    @State private var showAll     = false
-    @State private var isScrolled  = false
+    @State private var showAll          = false
+    @State private var isScrolled       = false
+    /// Staged selection — only applied when the user taps Done.
+    @State private var pendingCategory: String? = nil
 
     // ── All 8 P&L categories (used as the pool for sorting) ──────────────────
     static let allPLCategories: [ExpenseCategory] = [
@@ -735,7 +795,15 @@ struct CategoryPickerSheet: View {
                     .foregroundStyle(Color.black.opacity(0.9))
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                Button(action: onDone) {
+                Button {
+                    // Commit the staged selection if it differs from the current category.
+                    if let pending = pendingCategory,
+                       let cat = ExpenseCategory(rawValue: pending),
+                       pending != currentCategory {
+                        onSelect(cat)
+                    }
+                    onDone()
+                } label: {
                     Text("Done")
                         .font(.paragraphSemibold30)
                         .foregroundStyle(Color.white)
@@ -863,8 +931,8 @@ struct CategoryPickerSheet: View {
 
     @ViewBuilder
     private func categoryCard(_ cat: ExpenseCategory) -> some View {
-        let isSelected = currentCategory == cat.rawValue
-        Button { onSelect(cat) } label: {
+        let isSelected = (pendingCategory ?? currentCategory) == cat.rawValue
+        Button { pendingCategory = cat.rawValue } label: {
             VStack(spacing: 8) {
                 Image(Self.asset(for: cat))
                     .resizable()
@@ -895,6 +963,46 @@ struct CategoryPickerSheet: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Category saved toast
+
+/// Dark pill that slides up from the bottom when a category change is committed.
+private struct TxCategoryToast: View {
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // Green checkmark — 18pt icon in 24pt container (12.5% inset per Figma)
+            Image("ToastCheckmark")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 18, height: 18)
+                .frame(width: 24, height: 24)
+
+            Text("Transaction updated")
+                .font(.custom(AppFont.Text.regular, size: 16))
+                .foregroundStyle(Color.white.opacity(0.95))
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            // X dismiss button — 13.42pt icon in 24pt container (22% inset per Figma)
+            Button(action: onDismiss) {
+                Image("ToastXIcon")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 13, height: 13)
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color(white: 0.102))   // #1A1A1A
+                .shadow(color: Color.black.opacity(0.1), radius: 16, x: 0, y: 8)
+                .shadow(color: Color.black.opacity(0.1), radius: 32, x: 0, y: 4)
+        )
     }
 }
 
