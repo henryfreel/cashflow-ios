@@ -251,3 +251,96 @@ struct DonutChartView: View {
         return f.string(from: NSNumber(value: v)) ?? "$0.00"
     }
 }
+
+// MARK: - Mini donut ring
+
+/// A 40 × 40 pt non-interactive ring whose arc proportions, direction, and
+/// gap sizing exactly match the full DonutChartView.
+///
+/// Direction: uses the same R()-reflection + clockwise:true technique as
+/// DonutChartView so arcs sweep clockwise on screen from 12 o'clock.
+/// Gaps:      Arcs are drawn with `.lineCap: .round`.  A 20° angular gap
+///            (wider than 2 × cap_ext ≈ 16.4°) lets each cap protrude into
+///            the gap without fully reaching the next arc.  A white erase arc
+///            covers only the middle of the gap (cap_ext inset on each side),
+///            preserving the rounded ends while cutting clean white space.
+/// Colors:    supplied array cycles green1→green2→… (revenue) or red1→red2→…
+///            (expenses), darkest at 12 o'clock, getting lighter clockwise.
+struct MiniDonutRing: View {
+
+    let segments: [DonutChartView.Segment]
+    /// One color per segment position; cycles if there are more segments than colors.
+    let colors: [Color]
+
+    private let strokeRatio: CGFloat = 0.20
+    /// Gap must be > 2 × cap_ext so round caps can protrude into the gap
+    /// without fully overlapping each other.  At 40 pt, cap_ext ≈ 8.2°,
+    /// so gapDeg = 19° leaves ~6.4° (~2 pt) of genuinely white space in the middle.
+    private let gapDeg: Double = 19.0
+
+    private var total: Double { segments.reduce(0) { $0 + $1.value } }
+
+    /// Identical cursor logic to DonutChartView.computeAngles — cursor starts
+    /// half a gap past 12 o'clock so the gap at the top is centred on -90°.
+    private func computeAngles() -> [(start: Double, end: Double)] {
+        guard total > 0 else { return segments.map { _ in (0, 0) } }
+        let available = 360.0 - gapDeg * Double(segments.count)
+        var result: [(Double, Double)] = []
+        var cursor = -90.0 + gapDeg / 2
+        for seg in segments {
+            let sweep = (seg.value / total) * available
+            result.append((cursor, cursor + sweep))
+            cursor += sweep + gapDeg
+        }
+        return result
+    }
+
+    /// Reflects an angle around the 12–6 vertical axis: identical to DonutChartView.R().
+    /// Combined with clockwise:true this produces clockwise visual motion on screen.
+    private func R(_ deg: Double) -> Double { -180.0 - deg }
+
+    var body: some View {
+        Canvas { ctx, size in
+            let outerR  = size.width / 2
+            let strokeW = outerR * strokeRatio
+            let midR    = outerR - strokeW / 2
+            let c       = CGPoint(x: size.width / 2, y: size.height / 2)
+            let angs    = computeAngles()
+            let n       = angs.count
+            let arcStyle   = StrokeStyle(lineWidth: strokeW, lineCap: .round)
+            // The white erase arc uses .butt so it doesn't creep into arc bodies.
+            // +1 pt overdraw ensures full coverage against anti-aliasing.
+            let eraseStyle = StrokeStyle(lineWidth: strokeW + 1, lineCap: .butt)
+
+            // How far (in degrees) a round cap protrudes past the arc endpoint.
+            let capExt = Double(asin(Double(strokeW / 2 / midR)) * 180.0 / .pi)
+
+            // Pass 1 — draw all colored arcs with fully-rounded ends.
+            for (i, a) in angs.enumerated() {
+                let color = colors.isEmpty ? Color.gray4 : colors[i % colors.count]
+                var path  = Path()
+                path.addArc(center: c, radius: midR,
+                            startAngle: .degrees(R(a.start)),
+                            endAngle:   .degrees(R(a.end)),
+                            clockwise: true)
+                ctx.stroke(path, with: .color(color), style: arcStyle)
+            }
+
+            // Pass 2 — erase only the middle of each gap (where the two
+            // adjacent round caps overlap each other), leaving capExt degrees
+            // of rounded cap visible on each arc edge.
+            for i in 0 ..< n {
+                let gapS = angs[i].end       + capExt   // leave arc i's cap
+                let gapE = angs[(i + 1) % n].start - capExt  // leave arc i+1's cap
+                guard gapS < gapE else { continue }  // gap too small to erase
+                var path = Path()
+                path.addArc(center: c, radius: midR,
+                            startAngle: .degrees(R(gapS)),
+                            endAngle:   .degrees(R(gapE)),
+                            clockwise: true)
+                ctx.stroke(path, with: .color(.white), style: eraseStyle)
+            }
+        }
+        .frame(width: 40, height: 40)
+    }
+}

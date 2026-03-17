@@ -103,9 +103,8 @@ struct ProfitLossDetailView: View {
     private var totalExpenses:  Double { monthsForSelectedYear.reduce(0) { $0 + $1.expenses } }
     private var netProfit:      Double { totalRevenue - totalExpenses }
 
-    // Category breakdowns for the donut charts on Revenue / Expenses pages.
+    // Revenue breakdown for the donut chart on the Revenue detail page.
     private var revenueBreakdown: RevenueBreakdown { RevenueBreakdown(total: totalRevenue) }
-    private var expenseBreakdown: ExpenseBreakdown { ExpenseBreakdown(total: totalExpenses) }
 
     private var revenueDonutSegments: [DonutChartView.Segment] {
         let b = revenueBreakdown
@@ -118,14 +117,18 @@ struct ProfitLossDetailView: View {
     }
 
     private var expenseDonutSegments: [DonutChartView.Segment] {
-        let b = expenseBreakdown
-        return [
-            .init(id: 0, name: ExpenseCategory.cogs.rawValue,          value: b.cogs),
-            .init(id: 1, name: ExpenseCategory.laborPayroll.rawValue,   value: b.labor),
-            .init(id: 2, name: ExpenseCategory.rentUtilities.rawValue,  value: b.rent + b.utilities),
-            .init(id: 3, name: ExpenseCategory.marketing.rawValue,      value: b.marketing),
-            .init(id: 4, name: ExpenseCategory.officeSupplies.rawValue, value: b.misc),
-        ]
+        let totals = AppFinancials.expenseCategoryTotals(year: selectedYear)
+        // Preserve CaseIterable order; only include categories with actual spend.
+        let pairs: [(name: String, value: Double)] = ExpenseCategory.allCases
+            .filter { !$0.excludedFromPL }
+            .compactMap { cat in
+                let value = totals[cat.rawValue] ?? 0
+                guard value > 0 else { return nil }
+                return (cat.rawValue, value)
+            }
+        return pairs.enumerated().map { idx, pair in
+            .init(id: idx, name: pair.name, value: pair.value)
+        }
     }
 
     private var donutPeriodLabel: String { "Jan - Dec \(selectedYear)" }
@@ -688,6 +691,9 @@ struct ProfitLossDetailView: View {
             )
         }
         .navigationBarHidden(true)
+        // Reset donut selection when the year changes so the index can never
+        // point to a segment that no longer exists in the new year's data.
+        .onChange(of: selectedYear) { _, _ in selectedDonutIndex = 0 }
     }
 
     // MARK: Hero
@@ -752,7 +758,8 @@ struct ProfitLossDetailView: View {
         return VStack(spacing: 6) {
             Button { showRevenueDetail = true } label: {
                 revExpRow(
-                    image: noData ? "PLRowRingEmpty" : "PLRowRingRevenue",
+                    segments: revenueDonutSegments,
+                    colors: [.green6, .green5, .green4, .green3, .green2, .green1],
                     title: "Total revenue",
                     value: fmt(totalRevenue),
                     yoyPct: showYoy ? revYoyPct : nil,
@@ -767,7 +774,8 @@ struct ProfitLossDetailView: View {
 
             Button { showExpensesDetail = true } label: {
                 revExpRow(
-                    image: noData ? "PLRowRingEmpty" : "PLRowRingExpenses",
+                    segments: expenseDonutSegments,
+                    colors: [.red6, .red5, .red4, .red3, .red2, .red1],
                     title: "Total expenses",
                     value: fmt(totalExpenses),
                     valuePrefix: noData ? "" : "-",
@@ -807,18 +815,18 @@ struct ProfitLossDetailView: View {
     /// HStack: icon(40×40) - content(flex-1) - chevron(16×16). Gap: 16.
     /// Content VStack gap=2: title (14pt Regular, 55% black) / value row.
     /// Value row HStack gap=4 aligned to lastTextBaseline: prefix+SlotMachineText (16pt SemiBold, 90% black) + (↑X%) (14pt, gray3).
-    private func revExpRow(image: String,
+    private func revExpRow(segments: [DonutChartView.Segment],
+                            colors: [Color],
                             title: String,
                             value: String,
                             valuePrefix: String = "",
                             yoyPct: Double? = nil,
                             animateValue: Double? = nil) -> some View {
-        HStack(alignment: .center, spacing: 16) {
-            // 40×40 donut ring icon
-            Image(image)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 40, height: 40)
+        let n = min(segments.count, colors.count)
+        let slicedColors = Array(colors.suffix(n))
+        return HStack(alignment: .center, spacing: 16) {
+            // 40×40 mini donut ring — arc proportions match the full detail page donut
+            MiniDonutRing(segments: segments, colors: slicedColors)
 
             // Content column: title above, value + YoY% below
             VStack(alignment: .leading, spacing: 2) {

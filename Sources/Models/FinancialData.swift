@@ -382,6 +382,23 @@ extension AppFinancials {
     /// Stored as `let` so the full list is generated exactly once and reused.
     static let allTransactions: [Transaction] =
         (minYear...currentYear).flatMap { sampleTransactions(year: $0) }
+
+    /// Sum the absolute expense amounts for each P&L-included `ExpenseCategory`
+    /// across all transactions in the given year.  Categories with no transactions
+    /// (e.g. Transportation, Taxes & Licenses in the current sample data) are
+    /// absent from the returned dictionary so callers can filter them out.
+    static func expenseCategoryTotals(year: Int) -> [String: Double] {
+        var totals: [String: Double] = [:]
+        for tx in sampleTransactions(year: year) {
+            guard !tx.isRevenue,
+                  let cat    = tx.expenseCategory,
+                  let expCat = ExpenseCategory(rawValue: cat),
+                  !expCat.excludedFromPL
+            else { continue }
+            totals[cat, default: 0] += abs(tx.amount)
+        }
+        return totals
+    }
 }
 
 // MARK: - Generic Bar Chart Entry
