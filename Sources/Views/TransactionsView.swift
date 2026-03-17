@@ -65,8 +65,26 @@ struct TransactionsView: View {
         TxFilterOption(id: "Revenue",  label: "Revenue"),
         TxFilterOption(id: "Expenses", label: "Expenses"),
     ]
-    private static let categoryOptions: [TxFilterOption] =
-        ExpenseCategory.allCases.map { TxFilterOption(id: $0.rawValue, label: $0.rawValue) }
+    // Revenue filter IDs use a "rev:" prefix so they stay distinct from expense category raw values.
+    static let revCardKey   = "rev:card"
+    static let revGiftCard  = "rev:giftCard"
+    static let revOnline    = "rev:online"
+    static let revCash      = "rev:cash"
+
+    private static let categoryOptions: [TxFilterOption] = {
+        // ── Expenses ─────────────────────────────────────────────────────────
+        var opts: [TxFilterOption] = [.header("EXPENSES")]
+        opts += ExpenseCategory.allCases.map { TxFilterOption(id: $0.rawValue, label: $0.rawValue) }
+        // ── Revenue ───────────────────────────────────────────────────────────
+        opts.append(.header("REVENUE"))
+        opts += [
+            TxFilterOption(id: revCardKey,  label: "Card payment"),
+            TxFilterOption(id: revGiftCard, label: "Gift card"),
+            TxFilterOption(id: revOnline,   label: "Online payment"),
+            TxFilterOption(id: revCash,     label: "Cash payment"),
+        ]
+        return opts
+    }()
 
     private func options(for f: TxActiveFilter) -> [TxFilterOption] {
         switch f {
@@ -145,8 +163,27 @@ struct TransactionsView: View {
                     : selectedCashflows.contains("Expenses"))
             let catOk: Bool = {
                 guard !selectedCategories.isEmpty else { return true }
-                guard let cat = tx.expenseCategory else { return true }
-                return selectedCategories.contains(cat)
+                let revKeys = selectedCategories.filter { $0.hasPrefix("rev:") }
+                let expKeys = selectedCategories.filter { !$0.hasPrefix("rev:") }
+                if tx.isRevenue {
+                    guard !revKeys.isEmpty else { return false }
+                    return revKeys.contains { key in
+                        switch key {
+                        case Self.revCardKey:
+                            if case .cardPayment      = tx.type { return true }
+                            if case .cardPaymentGroup = tx.type { return true }
+                            return false
+                        case Self.revGiftCard:  return tx.type == .giftCard
+                        case Self.revOnline:    return tx.type == .onlineOrder
+                        case Self.revCash:      return tx.type == .cashPayment
+                        default:               return false
+                        }
+                    }
+                } else {
+                    guard !expKeys.isEmpty else { return false }
+                    guard let cat = tx.expenseCategory else { return false }
+                    return expKeys.contains(cat)
+                }
             }()
             let searchOk: Bool = {
                 guard !searchText.isEmpty else { return true }
@@ -347,6 +384,7 @@ struct TransactionsView: View {
                                 onSelectTx: { selectedTransaction = $0 })
                 }
             }
+            .contentMargins(.bottom, 94, for: .scrollContent)
             .onScrollGeometryChange(for: Bool.self) { geo in
                 geo.contentOffset.y + geo.contentInsets.top > 0
             } action: { _, scrolled in

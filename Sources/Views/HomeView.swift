@@ -182,6 +182,9 @@ private struct ProfitLossCard: View {
     @Binding var selectedQuarter: Int
     @Binding var selectedMonth:   Int
 
+    @Environment(TransactionStore.self) private var txStore: TransactionStore?
+    private var overrides: [UUID: String] { txStore?.categoryOverrides ?? [:] }
+
     @State private var activeBarIndex: Int? = nil
     @State private var chartWidth: CGFloat = 0
     @State private var chartTopInCard: CGFloat = 0  // measured; drives tooltip Y
@@ -340,7 +343,7 @@ private struct ProfitLossCard: View {
     // loss bar will be proportionally shorter than a $5,000 profit bar.
     // The one bar with the greatest absolute value always reaches exactly 60pt.
     private var bars: [MonthBar] {
-        let data = AppFinancials.monthlyData(year: selectedYear)
+        let data = AppFinancials.monthlyData(year: selectedYear, overrides: overrides)
         let maxAbs = data.map { abs($0.netProfit) }.max() ?? 1
         let scale = CGFloat(60.0 / maxAbs)
         // Current month indicator only applies when viewing the live year/month
@@ -364,9 +367,10 @@ private struct ProfitLossCard: View {
         let id: Int            // 0-based index for array access
         let dayNumber: Int     // 1-based day (1–31)
         let monthName: String  // e.g. "December"
-        let height: CGFloat    // normalized ±60pt; 0 for future days
+        let height: CGFloat    // normalized ±60pt; 0 for future/no-activity days
         let value: Double      // net profit
-        let hasData: Bool      // false for future days
+        let hasData: Bool      // false when revenue == 0 && expenses == 0
+        let isFuture: Bool     // true only for genuinely future dates
         let isToday: Bool      // current partial day shown dimmed at rest
 
         // Label shown on the axis: odd days only; even days return ""
@@ -376,7 +380,7 @@ private struct ProfitLossCard: View {
 
     private var dayBars: [DayBar] {
         let data = AppFinancials.dailyData(year: selectedYear, month: selectedMonth)
-        let maxAbs = data.filter { $0.hasData }.map { abs($0.netProfit) }.max() ?? 1
+        let maxAbs = data.filter { !$0.isFuture }.map { abs($0.netProfit) }.max() ?? 1
         let scale = CGFloat(60.0 / maxAbs)
         let monthName = Self.fullMonthNames[max(0, min(11, selectedMonth - 1))]
         let isLiveMonth = selectedYear == AppFinancials.currentYear && selectedMonth == AppFinancials.currentMonth
@@ -385,9 +389,10 @@ private struct ProfitLossCard: View {
                 id: d.id - 1,
                 dayNumber: d.id,
                 monthName: monthName,
-                height: d.hasData ? CGFloat(d.netProfit) * scale : 0,
+                height: (!d.isFuture && d.hasData) ? CGFloat(d.netProfit) * scale : 0,
                 value: d.netProfit,
                 hasData: d.hasData,
+                isFuture: d.isFuture,
                 isToday: isLiveMonth && d.id == AppFinancials.currentDay
             )
         }
@@ -406,7 +411,8 @@ private struct ProfitLossCard: View {
     }
 
     private var weekBars: [WeekBar] {
-        let data = AppFinancials.weeklyData(year: selectedYear, quarter: selectedQuarter)
+        let data = AppFinancials.weeklyData(year: selectedYear, quarter: selectedQuarter,
+                                             overrides: overrides)
         let maxAbs = data.filter { $0.hasData }.map { abs($0.netProfit) }.max() ?? 1
         let scale = CGFloat(60.0 / maxAbs)
         // Current-week dimming only applies when viewing the live quarter
@@ -439,7 +445,7 @@ private struct ProfitLossCard: View {
         case "1M":
             guard idx < dayBars.count else { return nil }
             let db = dayBars[idx]
-            return ActiveBarInfo(label: db.fullLabel, value: db.value, isFuture: !db.hasData)
+            return ActiveBarInfo(label: db.fullLabel, value: db.value, isFuture: db.isFuture)
         case "1Q":
             guard idx < weekBars.count else { return nil }
             let wb = weekBars[idx]
@@ -456,12 +462,13 @@ private struct ProfitLossCard: View {
         switch selectedPeriod {
         case "1M":
             return AppFinancials.dailyData(year: selectedYear, month: selectedMonth)
-                .filter(\.hasData).map(\.netProfit).reduce(0, +)
+                .filter { !$0.isFuture }.map(\.netProfit).reduce(0, +)
         case "1Q":
-            return AppFinancials.weeklyData(year: selectedYear, quarter: selectedQuarter)
+            return AppFinancials.weeklyData(year: selectedYear, quarter: selectedQuarter,
+                                             overrides: overrides)
                 .filter(\.hasData).map(\.netProfit).reduce(0, +)
         default:
-            return AppFinancials.monthlyData(year: selectedYear).map(\.netProfit).reduce(0, +)
+            return AppFinancials.monthlyData(year: selectedYear, overrides: overrides).map(\.netProfit).reduce(0, +)
         }
     }
 

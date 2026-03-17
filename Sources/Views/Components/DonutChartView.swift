@@ -54,8 +54,7 @@ struct DonutChartView: View {
         let available = 360.0 - totalGap
         var result: [(Double, Double)] = []
         // Start half a gap past 12-o'clock so the first gap is perfectly centred
-        // at -90° (straight up). This guarantees the cap bisector at that gap is
-        // exactly -90°, making the top split edges perfectly vertical.
+        // at -90° (straight up).
         var cursor = -90.0 + gapDeg / 2
         for seg in segments {
             let sweep = (seg.value / total) * available

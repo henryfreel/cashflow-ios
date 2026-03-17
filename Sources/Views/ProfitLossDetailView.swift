@@ -26,6 +26,10 @@ private struct NavigationBackGestureEnabler: UIViewControllerRepresentable {
 struct ProfitLossDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AppNavigationState.self) private var navState: AppNavigationState?
+    @Environment(TransactionStore.self) private var txStore: TransactionStore?
+
+    /// Convenience accessor — falls back to empty dict when store isn't in the environment.
+    private var overrides: [UUID: String] { txStore?.categoryOverrides ?? [:] }
     @State private var isScrolled = false
     // Measured height of the metrics section while data is available.
     // Stored separately so metricsNoDataView can match it exactly, preventing
@@ -90,13 +94,13 @@ struct ProfitLossDetailView: View {
     // MARK: Hero + revenue/expenses card (driven by selectedYear)
 
     private var monthsForSelectedYear: [MonthlyFinancial] {
-        AppFinancials.monthlyData(year: selectedYear)
+        AppFinancials.monthlyData(year: selectedYear, overrides: overrides)
     }
 
     private var monthsForPrevYear: [MonthlyFinancial] {
         let prev = selectedYear - 1
         guard prev >= AppFinancials.minYear else { return [] }
-        return AppFinancials.monthlyData(year: prev)
+        return AppFinancials.monthlyData(year: prev, overrides: overrides)
     }
 
     private var totalRevenue:   Double { monthsForSelectedYear.reduce(0) { $0 + $1.revenue } }
@@ -117,7 +121,7 @@ struct ProfitLossDetailView: View {
     }
 
     private var expenseDonutSegments: [DonutChartView.Segment] {
-        let totals = AppFinancials.expenseCategoryTotals(year: selectedYear)
+        let totals = AppFinancials.expenseCategoryTotals(year: selectedYear, overrides: overrides)
         // Preserve CaseIterable order; only include categories with actual spend.
         let pairs: [(name: String, value: Double)] = ExpenseCategory.allCases
             .filter { !$0.excludedFromPL }
@@ -253,7 +257,8 @@ struct ProfitLossDetailView: View {
         }
         switch selectedPeriod {
         case "Quarter":
-            let weeks = AppFinancials.weeklyData(year: selectedYear, quarter: selectedQuarter)
+            let weeks = AppFinancials.weeklyData(year: selectedYear, quarter: selectedQuarter,
+                                                  overrides: overrides)
             let isCurrentPeriod = selectedYear == AppFinancials.currentYear
                                 && selectedQuarter == AppFinancials.currentQuarter
             let currentWeekIdx = isCurrentPeriod
@@ -269,7 +274,8 @@ struct ProfitLossDetailView: View {
             let abbrev = Self.monthAbbrevs[selectedMonth - 1]
             let isCurrentPeriod = selectedYear == AppFinancials.currentYear
                                 && selectedMonth == AppFinancials.currentMonth
-            return AppFinancials.dailyData(year: selectedYear, month: selectedMonth).map { d in
+            return AppFinancials.dailyData(year: selectedYear, month: selectedMonth,
+                                            overrides: overrides).map { d in
                 let dc = DateComponents(year: selectedYear, month: selectedMonth, day: d.id)
                 let wdAbbrev: String
                 if let date = Calendar.current.date(from: dc) {
@@ -280,10 +286,11 @@ struct ProfitLossDetailView: View {
                 return BarChartEntry(id: d.id - 1, label: "\(d.id)",
                               fullLabel: fl,
                               revenue: d.revenue, expenses: d.expenses,
-                              isCurrent: isCurrentPeriod && d.id == AppFinancials.currentDay)
+                              isCurrent: isCurrentPeriod && d.id == AppFinancials.currentDay,
+                              isFuture: d.isFuture)
             }
         default: // "Year"
-            let months = AppFinancials.monthlyData(year: selectedYear)
+            let months = AppFinancials.monthlyData(year: selectedYear, overrides: overrides)
             let isCurrentYear = selectedYear == AppFinancials.currentYear
             return months.map {
                 BarChartEntry(id: $0.id, label: $0.month, fullLabel: $0.fullMonth,
@@ -298,20 +305,22 @@ struct ProfitLossDetailView: View {
         guard prev >= AppFinancials.minYear else { return [] }
         switch selectedPeriod {
         case "Quarter":
-            return AppFinancials.weeklyData(year: prev, quarter: selectedQuarter).map { w in
+            return AppFinancials.weeklyData(year: prev, quarter: selectedQuarter,
+                                             overrides: overrides).map { w in
                 let label = w.dateRange.isEmpty ? "Week \(w.id + 1)" : w.dateRange
                 return BarChartEntry(id: w.id, label: "\(w.id + 1)", fullLabel: label,
                                      revenue: w.revenue, expenses: w.expenses)
             }
         case "Month":
             let abbrev = Self.monthAbbrevs[selectedMonth - 1]
-            return AppFinancials.dailyData(year: prev, month: selectedMonth).map { d in
+            return AppFinancials.dailyData(year: prev, month: selectedMonth,
+                                            overrides: overrides).map { d in
                 BarChartEntry(id: d.id - 1, label: "\(d.id)",
                               fullLabel: "\(abbrev) \(d.id)",
                               revenue: d.revenue, expenses: d.expenses)
             }
         default: // "Year"
-            return AppFinancials.monthlyData(year: prev).map {
+            return AppFinancials.monthlyData(year: prev, overrides: overrides).map {
                 BarChartEntry(id: $0.id, label: $0.month, fullLabel: $0.fullMonth,
                               revenue: $0.revenue, expenses: $0.expenses)
             }
@@ -403,7 +412,7 @@ struct ProfitLossDetailView: View {
         case "Quarter":
             return "Q\(selectedQuarter) \(selectedYear)"
         case "Month":
-            return "\(Self.monthNames[selectedMonth - 1]), \(selectedYear)"
+            return "\(Self.monthNames[selectedMonth - 1]) \(selectedYear)"
         default: // "Year"
             return "Jan - Dec, \(selectedYear)"
         }
@@ -754,16 +763,35 @@ struct ProfitLossDetailView: View {
     /// Each row: gap-16 icon→content, py=16. Content: title 14pt/55% black, value 16pt SemiBold + (↑X%) inline.
     private var revenueExpensesCard: some View {
         let noData = !hasDataForPeriod
+        let isScrubbing = scrubIndex != nil
+        let scrubBarHasData = scrubIndex.map {
+            $0 < currentEntries.count && !currentEntries[$0].isFuture
+        } ?? false
+        let isFutureScrub = isScrubbing && !scrubBarHasData
+        // hasPrev mirrors the logic in unifiedMetricsContent so YoY% visibility
+        // is consistent between the card and the metrics rows below the chart.
+        let hasPrevScrub = isScrubbing && !isFutureScrub
+            ? (scrubIndex ?? 0) < prevYearEntries.count && prevYearEntries[scrubIndex ?? 0].hasData
+            : false
         let showYoy = !noData && hasPrevYearData
+        // When scrubbing, show that bar's revenue/expenses and its YoY%.
+        // When idle, show the full-period total as before.
+        let displayRev    = isScrubbing ? scrubRevenue   : totalRevenue
+        let displayExp    = isScrubbing ? scrubExpenses  : totalExpenses
+        let displayRevYoy = isScrubbing ? scrubRevYoyPct : revYoyPct
+        let displayExpYoy = isScrubbing ? scrubExpYoyPct : expYoyPct
+        let showRevYoy    = showYoy && (!isScrubbing || (hasPrevScrub && !isFutureScrub))
+        let showExpYoy    = showYoy && (!isScrubbing || (hasPrevScrub && !isFutureScrub))
+
         return VStack(spacing: 6) {
             Button { showRevenueDetail = true } label: {
                 revExpRow(
                     segments: revenueDonutSegments,
                     colors: [.green6, .green5, .green4, .green3, .green2, .green1],
                     title: "Total revenue",
-                    value: fmt(totalRevenue),
-                    yoyPct: showYoy ? revYoyPct : nil,
-                    animateValue: totalRevenue
+                    value: fmt(displayRev),
+                    yoyPct: showRevYoy ? displayRevYoy : nil,
+                    animateValue: isScrubbing ? displayRev : nil
                 )
             }
             .buttonStyle(.plain)
@@ -777,10 +805,10 @@ struct ProfitLossDetailView: View {
                     segments: expenseDonutSegments,
                     colors: [.red6, .red5, .red4, .red3, .red2, .red1],
                     title: "Total expenses",
-                    value: fmt(totalExpenses),
+                    value: fmt(displayExp),
                     valuePrefix: noData ? "" : "-",
-                    yoyPct: showYoy ? expYoyPct : nil,
-                    animateValue: totalExpenses
+                    yoyPct: showExpYoy ? displayExpYoy : nil,
+                    animateValue: isScrubbing ? displayExp : nil
                 )
             }
             .buttonStyle(.plain)
@@ -957,20 +985,31 @@ struct ProfitLossDetailView: View {
             selectedPeriod = label
             switch label {
             case "Year":
-                break
+                break   // selectedYear unchanged — nothing to derive
+
             case "Quarter":
-                if previousPeriod == "Year" {
-                    selectedQuarter = selectedYear == AppFinancials.currentYear ? AppFinancials.currentQuarter : 4
-                } else {
+                if previousPeriod == "Month" {
+                    // Snap to the quarter that contains the current month so the
+                    // user lands on a period they were just looking at.
                     selectedQuarter = ((selectedMonth - 1) / 3) + 1
                 }
+                // Year → Quarter: keep selectedQuarter as-is so returning to
+                // Quarter after a Year detour shows the same quarter as before.
+
             case "Month":
-                if previousPeriod == "Year" {
-                    selectedQuarter = selectedYear == AppFinancials.currentYear ? AppFinancials.currentQuarter : 4
-                    selectedMonth = selectedQuarter * 3
-                } else {
-                    selectedMonth = selectedQuarter * 3
+                if previousPeriod == "Quarter" {
+                    // If the remembered month falls inside the selected quarter,
+                    // keep it; otherwise land on the last month of that quarter.
+                    let qStart = (selectedQuarter - 1) * 3 + 1
+                    let qEnd   = selectedQuarter * 3
+                    if selectedMonth < qStart || selectedMonth > qEnd {
+                        selectedMonth = qEnd
+                    }
                 }
+                // Year → Month and Quarter → Month (already handled above):
+                // selectedMonth is kept as-is so the user returns to exactly
+                // the month they were viewing before switching away.
+
             default: break
             }
         } label: {
@@ -1072,7 +1111,7 @@ struct ProfitLossDetailView: View {
     private var unifiedMetricsContent: some View {
         let isScrubbing = scrubIndex != nil
         // A future bar has no data yet — show "TBD" instead of a YoY% that would be misleading.
-        let scrubBarHasData = scrubIndex.map { $0 < currentEntries.count && currentEntries[$0].hasData } ?? false
+        let scrubBarHasData = scrubIndex.map { $0 < currentEntries.count && !currentEntries[$0].isFuture } ?? false
         let isFutureScrub = isScrubbing && !scrubBarHasData
         let hasPrev = isScrubbing && !isFutureScrub
             ? (scrubIndex ?? 0) < prevYearEntries.count && prevYearEntries[scrubIndex ?? 0].hasData
@@ -1093,7 +1132,11 @@ struct ProfitLossDetailView: View {
         let catIndicator: IndicatorKind = isCategory
             ? .dot(pageTitle == "Revenue" ? Color.green3 : Color.red3)
             : .net
-        let catValuePrefix = (isCategory && pageTitle == "Expenses") ? "-" : ""
+        // Expense categories always carry a "-" prefix (displayed as a cost).
+        // Net profit on the P&L page carries "-" when the value is negative.
+        let catValuePrefix = isCategory
+            ? (pageTitle == "Expenses" ? "-" : "")
+            : (catValue < 0 ? "-" : "")
 
         return metricsRows(
             revTitle: "Total revenue",
@@ -1160,7 +1203,7 @@ struct ProfitLossDetailView: View {
                 title: netTitle,
                 subtitle: isFutureScrub
                     ? (netIndicator.isExpenseKind ? "↓ Change from last year TBD" : "↑ Change from last year TBD")
-                    : (hasPrev ? yoyLabel(netYoy, up: !netIndicator.isExpenseKind) + " \(yoySuffix)" : nil),
+                    : (hasPrev ? yoyLabel(netYoy, up: netYoy >= 0) + " \(yoySuffix)" : nil),
                 value: fmt(netValue),
                 valuePrefix: netValuePrefix,
                 valueFont: netValueFont,

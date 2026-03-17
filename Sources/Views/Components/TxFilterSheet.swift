@@ -6,6 +6,12 @@ import UIKit
 struct TxFilterOption: Identifiable, Hashable {
     let id: String
     let label: String
+    /// When true this item renders as a non-interactive section header, not a row.
+    var isHeader: Bool = false
+
+    static func header(_ title: String) -> TxFilterOption {
+        TxFilterOption(id: "__header__\(title)", label: title, isHeader: true)
+    }
 }
 
 // MARK: - Active filter enum
@@ -54,8 +60,10 @@ struct TxFilterSheet: View {
         _pendingKeys     = State(initialValue: initialKeys)
     }
 
+    private var selectableOptions: [TxFilterOption] { options.filter { !$0.isHeader } }
+
     private var someSelected: Bool {
-        !pendingKeys.isEmpty && pendingKeys.count < options.count
+        !pendingKeys.isEmpty && pendingKeys.count < selectableOptions.count
     }
 
     @State private var isScrolled = false
@@ -77,11 +85,15 @@ struct TxFilterSheet: View {
                         pendingKeys = []
                     }
                     ForEach(options) { opt in
-                        let state: TxCheckboxState =
-                            (pendingKeys.isEmpty || pendingKeys.contains(opt.id))
-                            ? .checked : .unchecked
-                        TxFilterRow(label: opt.label, state: state) {
-                            toggle(opt)
+                        if opt.isHeader {
+                            TxFilterSectionHeader(title: opt.label)
+                        } else {
+                            let state: TxCheckboxState =
+                                (pendingKeys.isEmpty || pendingKeys.contains(opt.id))
+                                ? .checked : .unchecked
+                            TxFilterRow(label: opt.label, state: state) {
+                                toggle(opt)
+                            }
                         }
                     }
                 }
@@ -100,11 +112,12 @@ struct TxFilterSheet: View {
     }
 
     private func toggle(_ opt: TxFilterOption) {
+        guard !opt.isHeader else { return }
         if pendingKeys.contains(opt.id) {
             pendingKeys.remove(opt.id)
         } else {
             pendingKeys.insert(opt.id)
-            if pendingKeys.count == options.count { pendingKeys = [] }
+            if pendingKeys.count == selectableOptions.count { pendingKeys = [] }
         }
     }
 
@@ -191,6 +204,21 @@ struct TxFilterSheet: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: isScrolled)
+    }
+}
+
+// MARK: - Section header
+
+struct TxFilterSectionHeader: View {
+    let title: String
+    var body: some View {
+        Text(title)
+            .font(.custom(AppFont.Text.medium, size: 13))
+            .foregroundStyle(Color.gray3)
+            .tracking(0.6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 8)
+            .padding(.bottom, 8)
     }
 }
 

@@ -5,19 +5,21 @@ import SwiftUI
 struct TransactionDetailView: View {
     let transaction: Transaction
     @Environment(\.dismiss) private var dismiss
+    @Environment(TransactionStore.self) private var txStore
 
     /// Local category override — updated when user picks from the category sheet.
+    /// Persisted to `txStore` on every change so charts update app-wide.
     @State private var localCategory: String?
     @State private var showingCategoryPicker  = false
     @State private var categorySheetExpanded  = false
 
     init(transaction: Transaction) {
         self.transaction = transaction
-        // Seed the local category so the picker opens with the right selection pre-highlighted.
-        // Card payments are pinned to Sales; transfer types default to Transfers if unset.
+        // Seed localCategory from the transaction's original value; any existing
+        // store override is applied in onAppear so the picker opens correctly.
         let initial: String?
         switch transaction.type {
-        case .cardPayment, .cardPaymentGroup:
+        case .cardPayment, .cardPaymentGroup, .onlineOrder, .cashPayment, .giftCard:
             initial = ExpenseCategory.sales.rawValue
         case .internalTransfer, .automatedTransfer, .bankTransfer:
             initial = transaction.expenseCategory ?? ExpenseCategory.transfers.rawValue
@@ -90,7 +92,7 @@ struct TransactionDetailView: View {
                           .rentUtilities, .officeSupplies, .transportation, .taxesLicenses]
         } else {
             switch transaction.type {
-            case .cardPayment, .cardPaymentGroup:
+            case .cardPayment, .cardPaymentGroup, .onlineOrder, .cashPayment, .giftCard:
                 candidates = [.sales, .cogs, .marketing, .laborPayroll,
                               .rentUtilities, .officeSupplies, .transportation, .taxesLicenses]
             case .bankTransfer, .internalTransfer, .automatedTransfer:
@@ -142,10 +144,10 @@ struct TransactionDetailView: View {
         }
     }
 
-    /// Only card payments are locked to Sales and cannot be recategorised.
+    /// Revenue transactions are locked to Sales and cannot be recategorised.
     private var isCategoryDisabled: Bool {
         switch transaction.type {
-        case .cardPayment, .cardPaymentGroup: return true
+        case .cardPayment, .cardPaymentGroup, .onlineOrder, .cashPayment, .giftCard: return true
         default: return false
         }
     }
@@ -176,6 +178,12 @@ struct TransactionDetailView: View {
         switch transaction.type {
         case .cardPayment, .cardPaymentGroup:
             return transaction.isRevenue ? "Payment received" : "Payment completed"
+        case .onlineOrder:
+            return "Payment received"
+        case .cashPayment:
+            return "Cash payment received"
+        case .giftCard:
+            return "Gift card sold"
         case .purchase:
             if transaction.merchantName == "Square Payroll" { return "Payroll sent" }
             return transaction.isRevenue ? "Payment received" : "Payment completed"
@@ -198,6 +206,17 @@ struct TransactionDetailView: View {
             }
             if let card = transaction.cardInfo { return "Spent via \(card)" }
             return "Spent via card"
+
+        case .onlineOrder:
+            return "Received via online payment"
+
+        case .cashPayment:
+            if let loc = transaction.locationName { return "Received at \(loc)" }
+            return "Received in store"
+
+        case .giftCard:
+            if let loc = transaction.locationName { return "Sold at \(loc)" }
+            return "Sold in store"
 
         case .purchase:
             if transaction.merchantName == "Square Payroll" {
@@ -353,6 +372,13 @@ struct TransactionDetailView: View {
             }
         }
         .ignoresSafeArea(edges: .top)
+        .onAppear {
+            // If this transaction has a stored override from earlier in the session,
+            // apply it so the displayed category and picker both reflect the change.
+            if let stored = txStore.categoryOverrides[transaction.id] {
+                localCategory = stored
+            }
+        }
         .interactiveDismissDisabled(showingCategoryPicker)
         .customBottomSheet(
             isPresented:   $showingCategoryPicker,
@@ -364,6 +390,8 @@ struct TransactionDetailView: View {
                 suggestedOthers: contextualSuggestions,
                 onSelect: { selected in
                     localCategory = selected.rawValue
+                    // Persist to the session store so charts update immediately.
+                    txStore.setCategory(selected, for: transaction.id)
                     showingCategoryPicker = false
                 },
                 onDone: {

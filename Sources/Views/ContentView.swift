@@ -51,13 +51,19 @@ struct ContentView: View {
     @State private var showBalance = false
     @State private var showProfitLossDetail = false
     @State private var navState = AppNavigationState()
+    @State private var txStore  = TransactionStore()
 
     var body: some View {
         tabContent
+            .environment(txStore)
             .animation(nil, value: navState.selectedTab)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 BottomTabBar(selectedTab: navState.selectedTab) { tapped in
-                    if tapped == .home { showProfitLossDetail = false }
+                    // Tap the active Home tab again → pop to root (standard iOS behaviour).
+                    // Tapping Home from another tab restores the stack as the user left it.
+                    if tapped == .home && navState.selectedTab == .home {
+                        showProfitLossDetail = false
+                    }
                     if tapped != .home { showBalance = false }
                     navState.selectedTab = tapped
                 }
@@ -99,16 +105,30 @@ struct ContentView: View {
             }
     }
 
+    // A unique key for the current Transactions filter — forces the NavigationStack
+    // to recreate (applying fresh init-time state) only when the filter changes,
+    // e.g. when the user navigates here from a P&L detail page.
+    private var txFilterKey: String {
+        "\(navState.txFilter.periodLabel)|\(navState.txFilter.cashflow)|\(navState.txFilter.category ?? "")|\(navState.txFilter.location ?? "")"
+    }
+
     @ViewBuilder
     private var tabContent: some View {
-        switch navState.selectedTab {
-        case .home:
+        ZStack {
+            // Home is always kept alive so its NavigationStack (HomeView →
+            // ProfitLossDetailView → Revenue/Expenses detail) survives tab
+            // switches and the user can return to exactly where they were.
             NavigationStack {
                 HomeView(showBalance: $showBalance,
                          showProfitLossDetail: $showProfitLossDetail)
             }
             .environment(navState)
-        case .transactions:
+            .opacity(navState.selectedTab == .home ? 1 : 0)
+            .allowsHitTesting(navState.selectedTab == .home)
+
+            // Transactions is also kept alive for scroll-position persistence.
+            // Keyed to txFilterKey so the stack recreates with fresh state
+            // whenever the filter changes (P&L "View transactions" taps).
             NavigationStack {
                 TransactionsView(
                     periodLabel: navState.txFilter.periodLabel,
@@ -117,9 +137,15 @@ struct ContentView: View {
                     location:    navState.txFilter.location
                 )
             }
+            .id(txFilterKey)
             .environment(navState)
-        case .analytics, .more:
-            Color.white // placeholder
+            .opacity(navState.selectedTab == .transactions ? 1 : 0)
+            .allowsHitTesting(navState.selectedTab == .transactions)
+
+            // Analytics / More placeholders
+            if navState.selectedTab == .analytics || navState.selectedTab == .more {
+                Color.white
+            }
         }
     }
 }

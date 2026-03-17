@@ -914,6 +914,7 @@ struct TxIconConfig {
                         .scaledToFit()
                         .frame(width: 20, height: 14)
                         .foregroundStyle(Color.gray1)
+                        .frame(width: 24, height: 24)
                 ),
                 whiteAvatarBorder: true)
         case .cardPaymentGroup:
@@ -926,6 +927,7 @@ struct TxIconConfig {
                         .scaledToFit()
                         .frame(width: 20, height: 14)
                         .foregroundStyle(Color.white)
+                        .frame(width: 24, height: 24)
                 ))
 
         case .internalTransfer:
@@ -971,6 +973,55 @@ struct TxIconConfig {
                 ),
                 whiteAvatarBorder: true)
 
+        case .onlineOrder:
+            return TxIconConfig(
+                kind: .grayIcon,
+                bg: Color.gray6,
+                content: AnyView(
+                    // SVG is 18×18pt inside a 24pt container (list view).
+                    // At 2× scaleEffect in TxDetailIcon: 36×36pt inside a 48pt container.
+                    Image("TxOnlineOrderIcon")
+                        .resizable().renderingMode(.template)
+                        .scaledToFit()
+                        .frame(width: 18, height: 18)
+                        .foregroundStyle(Color.gray1)
+                        .frame(width: 24, height: 24)
+                ),
+                whiteAvatarBorder: true)
+
+        case .cashPayment:
+            return TxIconConfig(
+                kind: .grayIcon,
+                bg: Color.gray6,
+                content: AnyView(
+                    // SVG is 20×14pt inside a 24pt square container (list view).
+                    // At 2× scaleEffect in TxDetailIcon: 40×28pt inside a 48pt container —
+                    // matching the Figma inset of 8.33% L/R and 20.83% T/B.
+                    Image("TxCashIcon")
+                        .resizable().renderingMode(.template)
+                        .scaledToFit()
+                        .frame(width: 20, height: 14)
+                        .foregroundStyle(Color.gray1)
+                        .frame(width: 24, height: 24)
+                ),
+                whiteAvatarBorder: true)
+
+        case .giftCard:
+            return TxIconConfig(
+                kind: .grayIcon,
+                bg: Color.gray6,
+                content: AnyView(
+                    // SVG is 20×17pt (35:30 ratio at 20pt width) inside a 24pt container.
+                    // At 2× scaleEffect in TxDetailIcon: 40×34pt inside a 48pt container.
+                    Image("TxGiftCardIcon")
+                        .resizable().renderingMode(.template)
+                        .scaledToFit()
+                        .frame(width: 20, height: 17)
+                        .foregroundStyle(Color.gray1)
+                        .frame(width: 24, height: 24)
+                ),
+                whiteAvatarBorder: true)
+
         case .bankTransfer:
             return bankTransfer(name: tx.merchantName)
 
@@ -1013,11 +1064,14 @@ struct TxIconConfig {
                 kind: .colorIcon,
                 bg: Color(red: 0.325, green: 0.698, blue: 0.282),
                 content: AnyView(
+                    // SVG viewBox 20×16 — 20pt wide inside 24pt container (list view).
+                    // At 2× scaleEffect in TxDetailIcon: 40×32pt inside a 48pt container.
                     Image("TxPayrollIcon")
                         .resizable().renderingMode(.template)
                         .scaledToFit()
-                        .frame(width: 24, height: 24)
+                        .frame(width: 20, height: 16)
                         .foregroundStyle(Color.white)
+                        .frame(width: 24, height: 24)
                 ))
         case "Inventory":
             return TxIconConfig(
@@ -1038,6 +1092,11 @@ struct TxIconConfig {
                 kind: .logoImage(border: false),
                 bg: Color(red: 0.0, green: 0.420, blue: 0.235),
                 content: AnyView(Image("txn-whole-foods").resizable().scaledToFit()))
+        case "Faire Wholesale":
+            return TxIconConfig(
+                kind: .logoImage(border: true),
+                bg: Color.white,
+                content: AnyView(Image("txn-faire").resizable().scaledToFit()))
         case "Tundra":
             return TxIconConfig(
                 kind: .fullImage(border: true),
@@ -1139,8 +1198,6 @@ struct TxIcon: View {
             iconContent(cfg)
             if cfg.border {
                 Circle().strokeBorder(Color.black.opacity(0.15), lineWidth: 1)
-            } else if cfg.whiteAvatarBorder {
-                Circle().strokeBorder(Color.white, lineWidth: 2)
             }
         }
         .frame(width: 40, height: 40)

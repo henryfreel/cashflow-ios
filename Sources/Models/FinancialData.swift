@@ -55,7 +55,7 @@ struct ExpenseBreakdown {
 
 enum RevenueCategory: String, CaseIterable, Identifiable {
     case squareCard = "Square Card Sales"
-    case online     = "Online Store"
+    case online     = "Online Payments"
     case cash       = "Cash Sales"
     case giftCard   = "Gift Cards"
 
@@ -90,6 +90,12 @@ enum TransactionType: Equatable {
     case cardPayment
     /// Multiple card payments grouped together. `count` = number of individual payments.
     case cardPaymentGroup(count: Int)
+    /// A single e-commerce / online-store order.
+    case onlineOrder
+    /// In-store cash sale.
+    case cashPayment
+    /// Gift card sale or redemption.
+    case giftCard
     case bankTransfer
     case internalTransfer
     /// Recurring scheduled transfer — automated savings sweeps, loan payments, etc.
@@ -177,88 +183,207 @@ extension AppFinancials {
         var items: [Transaction] = []
 
         // ── Revenue: card payments (Square Card Sales ≈ 68 % of revenue) ─────────
-        // Groups (dark bg) and singles (grey bg) are interleaved so no two card
-        // payment rows ever appear directly adjacent in the sorted list.
-        //   Groups: days  2, 9, 18, 27
-        //   Singles: days 5, 13, 23  ← each surrounded by expense transactions
+        // 14 entries (roughly double the original 7) so individual transaction
+        // amounts are smaller and more representative of daily sales patterns.
+        // Groups and singles alternate; fractions sum exactly to 1.00.
         let cardSalesTotal = revTotal * 0.68
         items.append(Transaction(
-            id: UUID(), date: day(2), amount: cardSalesTotal * 0.20,
-            merchantName: "Card payments (4)", subtitle: label(2),
-            locationName: "Hayes Valley", cardInfo: nil, type: .cardPaymentGroup(count: 4),
+            id: UUID(), date: day(2), amount: cardSalesTotal * 0.10,
+            merchantName: "Card payments (3)", subtitle: label(2),
+            locationName: "Hayes Valley", cardInfo: nil, type: .cardPaymentGroup(count: 3),
             expenseCategory: nil, isRevenue: true))
         items.append(Transaction(
-            id: UUID(), date: day(5), amount: cardSalesTotal * 0.10,
-            merchantName: "Card payment", subtitle: label(5),
+            id: UUID(), date: day(4), amount: cardSalesTotal * 0.07,
+            merchantName: "Card payment", subtitle: label(4),
             locationName: locations[1], cardInfo: nil, type: .cardPayment,
             expenseCategory: nil, isRevenue: true))
         items.append(Transaction(
-            id: UUID(), date: day(9), amount: cardSalesTotal * 0.14,
-            merchantName: "Card payments (2)", subtitle: label(9),
+            id: UUID(), date: day(5), amount: cardSalesTotal * 0.05,
+            merchantName: "Card payment", subtitle: label(5),
+            locationName: locations[2], cardInfo: nil, type: .cardPayment,
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(
+            id: UUID(), date: day(7), amount: cardSalesTotal * 0.09,
+            merchantName: "Card payments (2)", subtitle: label(7),
             locationName: "The Mission", cardInfo: nil, type: .cardPaymentGroup(count: 2),
             expenseCategory: nil, isRevenue: true))
         items.append(Transaction(
-            id: UUID(), date: day(13), amount: cardSalesTotal * 0.12,
-            merchantName: "Card payment", subtitle: label(13),
+            id: UUID(), date: day(9), amount: cardSalesTotal * 0.07,
+            merchantName: "Card payments (2)", subtitle: label(9),
+            locationName: "Bernal Heights", cardInfo: nil, type: .cardPaymentGroup(count: 2),
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(
+            id: UUID(), date: day(11), amount: cardSalesTotal * 0.05,
+            merchantName: "Card payment", subtitle: label(11),
             locationName: locations[0], cardInfo: nil, type: .cardPayment,
             expenseCategory: nil, isRevenue: true))
         items.append(Transaction(
-            id: UUID(), date: day(18), amount: cardSalesTotal * 0.18,
+            id: UUID(), date: day(13), amount: cardSalesTotal * 0.06,
+            merchantName: "Card payment", subtitle: label(13),
+            locationName: locations[1], cardInfo: nil, type: .cardPayment,
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(
+            id: UUID(), date: day(15), amount: cardSalesTotal * 0.07,
+            merchantName: "Card payments (2)", subtitle: label(15),
+            locationName: "Hayes Valley", cardInfo: nil, type: .cardPaymentGroup(count: 2),
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(
+            id: UUID(), date: day(18), amount: cardSalesTotal * 0.10,
             merchantName: "Card payments (3)", subtitle: label(18),
             locationName: "Bernal Heights", cardInfo: nil, type: .cardPaymentGroup(count: 3),
             expenseCategory: nil, isRevenue: true))
         items.append(Transaction(
-            id: UUID(), date: day(23), amount: cardSalesTotal * 0.12,
-            merchantName: "Card payment", subtitle: label(23),
+            id: UUID(), date: day(20), amount: cardSalesTotal * 0.06,
+            merchantName: "Card payment", subtitle: label(20),
             locationName: locations[2], cardInfo: nil, type: .cardPayment,
             expenseCategory: nil, isRevenue: true))
         items.append(Transaction(
-            id: UUID(), date: day(27), amount: cardSalesTotal * 0.14,
-            merchantName: "Card payments (2)", subtitle: label(27),
+            id: UUID(), date: day(22), amount: cardSalesTotal * 0.08,
+            merchantName: "Card payments (2)", subtitle: label(22),
+            locationName: "The Mission", cardInfo: nil, type: .cardPaymentGroup(count: 2),
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(
+            id: UUID(), date: day(24), amount: cardSalesTotal * 0.05,
+            merchantName: "Card payment", subtitle: label(24),
+            locationName: locations[0], cardInfo: nil, type: .cardPayment,
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(
+            id: UUID(), date: day(26), amount: cardSalesTotal * 0.08,
+            merchantName: "Card payments (2)", subtitle: label(26),
             locationName: "Hayes Valley", cardInfo: nil, type: .cardPaymentGroup(count: 2),
             expenseCategory: nil, isRevenue: true))
-
-        // ── Revenue: internal location transfers (remaining 32 %) ─────────────────
-        let otherRev = revTotal * 0.32
         items.append(Transaction(
-            id: UUID(), date: day(16), amount: otherRev * 0.6,
-            merchantName: "Hayes Valley", subtitle: label(16),
-            locationName: "The Mission", cardInfo: nil, type: .internalTransfer,
+            id: UUID(), date: day(28), amount: cardSalesTotal * 0.07,
+            merchantName: "Card payment", subtitle: label(28),
+            locationName: locations[1], cardInfo: nil, type: .cardPayment,
+            expenseCategory: nil, isRevenue: true))
+
+        // ── Revenue: Online Store (18 %) ──────────────────────────────────────────
+        // 3 orders spread across the month; fractions sum to 1.00.
+        let onlineTotal = revTotal * 0.18
+        items.append(Transaction(
+            id: UUID(), date: day(6), amount: onlineTotal * 0.38,
+            merchantName: "Online payment", subtitle: label(6),
+            locationName: nil, cardInfo: nil, type: .onlineOrder,
             expenseCategory: nil, isRevenue: true))
         items.append(Transaction(
-            id: UUID(), date: day(28), amount: otherRev * 0.4,
-            merchantName: "Hayes Valley", subtitle: label(28),
-            locationName: "Bernal Heights", cardInfo: nil, type: .internalTransfer,
+            id: UUID(), date: day(14), amount: onlineTotal * 0.34,
+            merchantName: "Online payment", subtitle: label(14),
+            locationName: nil, cardInfo: nil, type: .onlineOrder,
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(
+            id: UUID(), date: day(23), amount: onlineTotal * 0.28,
+            merchantName: "Online payment", subtitle: label(23),
+            locationName: nil, cardInfo: nil, type: .onlineOrder,
+            expenseCategory: nil, isRevenue: true))
+
+        // ── Revenue: Cash Sales (10 %) ────────────────────────────────────────────
+        // 4 cash payments, one per week; fractions sum to 1.00.
+        let cashTotal = revTotal * 0.10
+        items.append(Transaction(
+            id: UUID(), date: day(5), amount: cashTotal * 0.28,
+            merchantName: "Cash payment", subtitle: label(5),
+            locationName: locations[0], cardInfo: nil, type: .cashPayment,
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(
+            id: UUID(), date: day(12), amount: cashTotal * 0.26,
+            merchantName: "Cash payment", subtitle: label(12),
+            locationName: locations[1], cardInfo: nil, type: .cashPayment,
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(
+            id: UUID(), date: day(19), amount: cashTotal * 0.24,
+            merchantName: "Cash payment", subtitle: label(19),
+            locationName: locations[2], cardInfo: nil, type: .cashPayment,
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(
+            id: UUID(), date: day(27), amount: cashTotal * 0.22,
+            merchantName: "Cash payment", subtitle: label(27),
+            locationName: locations[0], cardInfo: nil, type: .cashPayment,
+            expenseCategory: nil, isRevenue: true))
+
+        // ── Revenue: Gift Cards (4 %) ─────────────────────────────────────────────
+        // 2 gift card sales per month; fractions sum to 1.00.
+        let giftCardTotal = revTotal * 0.04
+        items.append(Transaction(
+            id: UUID(), date: day(10), amount: giftCardTotal * 0.55,
+            merchantName: "Gift card", subtitle: label(10),
+            locationName: locations[1], cardInfo: nil, type: .giftCard,
+            expenseCategory: nil, isRevenue: true))
+        items.append(Transaction(
+            id: UUID(), date: day(25), amount: giftCardTotal * 0.45,
+            merchantName: "Gift card", subtitle: label(25),
+            locationName: locations[2], cardInfo: nil, type: .giftCard,
             expenseCategory: nil, isRevenue: true))
 
         // ── Expenses: COGS — card purchases ───────────────────────────────────────
-        // Spread across days that sit between card payment rows (days 2,5,9,13,18,23,27)
-        // so no expense transaction ever lands between two adjacent card payments.
-        items.append(Transaction(
-            id: UUID(), date: day(3), amount: -expB.cogs * 0.48,
-            merchantName: "Tundra", subtitle: label(3),
-            locationName: "Hayes Valley", cardInfo: "Square Card 4812", type: .purchase,
-            expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
-        items.append(Transaction(
-            id: UUID(), date: day(11), amount: -expB.cogs * 0.12,
-            merchantName: "UPS", subtitle: label(11),
-            locationName: nil, cardInfo: "Visa 7832", type: .purchase,
-            expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
-        items.append(Transaction(
-            id: UUID(), date: day(15), amount: -expB.cogs * 0.20,
-            merchantName: "Next Level Apparel", subtitle: label(15),
-            locationName: nil, cardInfo: "Square Card 4812", type: .purchase,
-            expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
-        items.append(Transaction(
-            id: UUID(), date: day(20), amount: -expB.cogs * 0.12,
-            merchantName: "Whole Foods", subtitle: label(20),
-            locationName: "Bernal Heights", cardInfo: "Visa 7832", type: .purchase,
-            expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
-        items.append(Transaction(
-            id: UUID(), date: day(25), amount: -expB.cogs * 0.08,
-            merchantName: "Home Depot", subtitle: label(25),
-            locationName: "The Mission", cardInfo: "Amex 5678", type: .purchase,
-            expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
+        // May gets a special override: a Faire Wholesale summer inventory order
+        // is the notable purchase (~16 % of COGS, ≈ $10 k) but the remaining
+        // COGS is spread across six vendors so the daily chart stays balanced.
+        // Fractions sum to 1.00. All other months use the normal spread below.
+        if month == 5 {
+            items.append(Transaction(
+                id: UUID(), date: day(3), amount: -expB.cogs * 0.20,
+                merchantName: "Tundra", subtitle: label(3),
+                locationName: "Hayes Valley", cardInfo: "Square Card 4812", type: .purchase,
+                expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
+            items.append(Transaction(
+                id: UUID(), date: day(8), amount: -expB.cogs * 0.16,
+                merchantName: "Faire Wholesale", subtitle: label(8),
+                locationName: nil, cardInfo: "Visa 7832", type: .purchase,
+                expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
+            items.append(Transaction(
+                id: UUID(), date: day(12), amount: -expB.cogs * 0.12,
+                merchantName: "Faire Wholesale", subtitle: label(12),
+                locationName: nil, cardInfo: "Visa 7832", type: .purchase,
+                expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
+            items.append(Transaction(
+                id: UUID(), date: day(16), amount: -expB.cogs * 0.18,
+                merchantName: "Next Level Apparel", subtitle: label(16),
+                locationName: nil, cardInfo: "Square Card 4812", type: .purchase,
+                expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
+            items.append(Transaction(
+                id: UUID(), date: day(21), amount: -expB.cogs * 0.14,
+                merchantName: "Whole Foods", subtitle: label(21),
+                locationName: "Bernal Heights", cardInfo: "Visa 7832", type: .purchase,
+                expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
+            items.append(Transaction(
+                id: UUID(), date: day(25), amount: -expB.cogs * 0.11,
+                merchantName: "UPS", subtitle: label(25),
+                locationName: nil, cardInfo: "Square Card 4812", type: .purchase,
+                expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
+            items.append(Transaction(
+                id: UUID(), date: day(28), amount: -expB.cogs * 0.09,
+                merchantName: "Home Depot", subtitle: label(28),
+                locationName: "The Mission", cardInfo: "Amex 5678", type: .purchase,
+                expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
+        } else {
+            // Normal months: spread COGS across days that sit between card payment rows.
+            items.append(Transaction(
+                id: UUID(), date: day(3), amount: -expB.cogs * 0.48,
+                merchantName: "Tundra", subtitle: label(3),
+                locationName: "Hayes Valley", cardInfo: "Square Card 4812", type: .purchase,
+                expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
+            items.append(Transaction(
+                id: UUID(), date: day(11), amount: -expB.cogs * 0.12,
+                merchantName: "UPS", subtitle: label(11),
+                locationName: nil, cardInfo: "Visa 7832", type: .purchase,
+                expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
+            items.append(Transaction(
+                id: UUID(), date: day(15), amount: -expB.cogs * 0.20,
+                merchantName: "Next Level Apparel", subtitle: label(15),
+                locationName: nil, cardInfo: "Square Card 4812", type: .purchase,
+                expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
+            items.append(Transaction(
+                id: UUID(), date: day(20), amount: -expB.cogs * 0.12,
+                merchantName: "Whole Foods", subtitle: label(20),
+                locationName: "Bernal Heights", cardInfo: "Visa 7832", type: .purchase,
+                expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
+            items.append(Transaction(
+                id: UUID(), date: day(25), amount: -expB.cogs * 0.08,
+                merchantName: "Home Depot", subtitle: label(25),
+                locationName: "The Mission", cardInfo: "Amex 5678", type: .purchase,
+                expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
+        }
 
         // ── Expenses: Labor — Square Payroll (account-level, per location) ─────────
         let payrollSplit: [(Double, String)] = [
@@ -384,18 +509,21 @@ extension AppFinancials {
         (minYear...currentYear).flatMap { sampleTransactions(year: $0) }
 
     /// Sum the absolute expense amounts for each P&L-included `ExpenseCategory`
-    /// across all transactions in the given year.  Categories with no transactions
-    /// (e.g. Transportation, Taxes & Licenses in the current sample data) are
-    /// absent from the returned dictionary so callers can filter them out.
-    static func expenseCategoryTotals(year: Int) -> [String: Double] {
+    /// across all transactions in the given year.  Category overrides from the
+    /// session store are applied: a transaction overridden to Personal/Transfers
+    /// is omitted; one moved from an excluded to an included category is counted
+    /// under the new category.  Categories with no transactions are absent from
+    /// the returned dictionary so callers can filter them out.
+    static func expenseCategoryTotals(year: Int,
+                                       overrides: [UUID: String] = [:]) -> [String: Double] {
         var totals: [String: Double] = [:]
         for tx in sampleTransactions(year: year) {
-            guard !tx.isRevenue,
-                  let cat    = tx.expenseCategory,
-                  let expCat = ExpenseCategory(rawValue: cat),
+            guard !tx.isRevenue else { continue }
+            let catRaw = overrides[tx.id] ?? tx.expenseCategory ?? ""
+            guard let expCat = ExpenseCategory(rawValue: catRaw),
                   !expCat.excludedFromPL
             else { continue }
-            totals[cat, default: 0] += abs(tx.amount)
+            totals[catRaw, default: 0] += abs(tx.amount)
         }
         return totals
     }
@@ -414,6 +542,10 @@ struct BarChartEntry: Identifiable {
     let expenses: Double
     /// True when this bar represents the current (partial) period — rendered with diagonal hatching.
     var isCurrent: Bool = false
+    /// True only for genuinely future periods (e.g. Dec 16-31 while today is Dec 15).
+    /// Distinct from `hasData` so that past days with zero transactions are not
+    /// mistaken for future bars when the user scrubs over them.
+    var isFuture: Bool = false
 
     var netProfit: Double { revenue - expenses }
     var hasData: Bool { revenue > 0 || expenses > 0 }
@@ -453,6 +585,9 @@ struct DailyFinancial: Identifiable {
     let id: Int       // day number 1-31
     let revenue: Double
     let expenses: Double
+    /// True only for days that haven't happened yet (e.g. Dec 16-31 on Dec 15).
+    /// Past days that simply had no transactions have isFuture = false but hasData = false.
+    var isFuture: Bool = false
 
     var netProfit: Double { revenue - expenses }
     var hasData: Bool { revenue > 0 || expenses > 0 }
@@ -522,7 +657,7 @@ enum AppFinancials {
         .init(id:  1, month: "F", fullMonth: "February",  revenue: 115_847.93, expenses:  77_891.45),  // net  37,956.48
         .init(id:  2, month: "M", fullMonth: "March",     revenue:  98_998.06, expenses:  78_758.72),  // net  20,239.34
         .init(id:  3, month: "A", fullMonth: "April",     revenue:  87_109.56, expenses:  79_418.33),  // net   7,691.23
-        .init(id:  4, month: "M", fullMonth: "May",       revenue:  79_432.15, expenses:  90_847.63),  // net -11,415.48  summer inventory buy
+        .init(id:  4, month: "M", fullMonth: "May",       revenue:  79_432.15, expenses: 121_847.63),  // net -42,415.48  large Faire wholesale order lands mid-month
         .init(id:  5, month: "J", fullMonth: "June",      revenue:  81_247.89, expenses:  83_612.34),  // net  -2,364.45
         .init(id:  6, month: "J", fullMonth: "July",      revenue:  84_518.32, expenses:  79_841.27),  // net   4,677.05
         .init(id:  7, month: "A", fullMonth: "August",    revenue:  88_935.86, expenses:  80_758.01),  // net   8,177.85
@@ -580,7 +715,7 @@ enum AppFinancials {
             ($0.0, DailyFinancial(id: $0.0, revenue: $0.1, expenses: $0.2))
         })
         return (1...31).map { day in
-            byDay[day] ?? DailyFinancial(id: day, revenue: 0, expenses: 0)
+            byDay[day] ?? DailyFinancial(id: day, revenue: 0, expenses: 0, isFuture: true)
         }
     }()
 
@@ -659,6 +794,38 @@ enum AppFinancials {
         }
     }
 
+    /// Monthly financials adjusted for category overrides.
+    /// Transactions overridden to an excluded category reduce the monthly expense
+    /// total; those moved from excluded to included increase it.
+    static func monthlyData(year: Int, overrides: [UUID: String]) -> [MonthlyFinancial] {
+        guard !overrides.isEmpty else { return monthlyData(year: year) }
+        var base = monthlyData(year: year)
+        for monthIdx in base.indices {
+            let m   = base[monthIdx]
+            let txs = sampleTransactions(year: year, month: m.id + 1) // id is 0-based
+
+            // Compute the same normalization factor used in dailyDataFromTransactions
+            let rawExpSum  = txs.filter { !$0.isRevenue }.map { abs($0.amount) }.reduce(0, +)
+            let expScale   = rawExpSum > 0 ? m.expenses / rawExpSum : 1.0
+
+            var expDelta = 0.0
+            for tx in txs where !tx.isRevenue {
+                guard let override = overrides[tx.id] else { continue }
+                let wasExcluded = (tx.expenseCategory.flatMap(ExpenseCategory.init)?.excludedFromPL ?? false)
+                let nowExcluded = (ExpenseCategory(rawValue: override)?.excludedFromPL ?? false)
+                if !wasExcluded && nowExcluded  { expDelta -= abs(tx.amount) * expScale }
+                if  wasExcluded && !nowExcluded { expDelta += abs(tx.amount) * expScale }
+            }
+            if expDelta != 0 {
+                base[monthIdx] = MonthlyFinancial(
+                    id: m.id, month: m.month, fullMonth: m.fullMonth,
+                    revenue: m.revenue, expenses: max(0, m.expenses + expDelta)
+                )
+            }
+        }
+        return base
+    }
+
     /// 13-week quarterly data for any supported year + quarter.
     /// Q4 2024 delegates to the hand-crafted `quarterlyWeeks` array;
     /// all other periods are computed proportionally from monthly data.
@@ -666,17 +833,103 @@ enum AppFinancials {
     static func weeklyData(year: Int, quarter: Int) -> [WeeklyFinancial] {
         guard year >= minYear else { return [] }
         if year == 2024 && quarter == 4 { return quarterlyWeeks }
-        return buildWeeklyData(year: year, quarter: quarter)
+        return buildWeeklyData(year: year, quarter: quarter, months: monthlyData(year: year))
     }
 
-    /// Daily data for any supported year + month.
-    /// December 2024 delegates to the hand-crafted `decemberDaily` array;
-    /// all other months are computed proportionally from monthly data.
-    /// Returns empty array for years outside the data range.
-    static func dailyData(year: Int, month: Int) -> [DailyFinancial] {
+    /// Overload that applies category overrides before distributing into weeks.
+    /// When overrides alter expense totals, those changes propagate into weekly figures.
+    static func weeklyData(year: Int, quarter: Int,
+                            overrides: [UUID: String]) -> [WeeklyFinancial] {
         guard year >= minYear else { return [] }
-        if year == 2024 && month == 12 { return decemberDaily }
-        return buildDailyData(year: year, month: month)
+        guard !overrides.isEmpty else { return weeklyData(year: year, quarter: quarter) }
+        let adjusted = monthlyData(year: year, overrides: overrides)
+        return buildWeeklyData(year: year, quarter: quarter, months: adjusted)
+    }
+
+    /// Daily data for any supported year + month, with optional category overrides.
+    /// Derived directly from `sampleTransactions` so the bar chart always
+    /// matches what the Transactions page shows for that month.
+    /// Transactions overridden to an excluded category (Personal/Transfers) are
+    /// removed from the expense totals; those moved to an included category are added.
+    /// Monthly revenue and adjusted expense totals are preserved via normalisation.
+    static func dailyData(year: Int, month: Int,
+                           overrides: [UUID: String] = [:]) -> [DailyFinancial] {
+        guard year >= minYear else { return [] }
+        return dailyDataFromTransactions(year: year, month: month, overrides: overrides)
+    }
+
+    /// Aggregates per-day revenue and expense amounts from the sample transactions,
+    /// applying any category overrides, then normalises values to monthly record totals.
+    ///
+    /// - `overrides`: category raw-value keyed by transaction UUID; empty = no changes.
+    /// - Future days (beyond the active cutoff) are marked `isFuture = true`.
+    /// - Past days with zero transactions have `isFuture = false`, `hasData = false`.
+    private static func dailyDataFromTransactions(year: Int, month: Int,
+                                                   overrides: [UUID: String] = [:]) -> [DailyFinancial] {
+        let months    = monthlyData(year: year)
+        let mData     = months[month - 1]
+        let totalDays = daysInMonth(year: year, month: month)
+        let cal       = Calendar.current
+        let txs       = sampleTransactions(year: year, month: month)
+
+        // ── Compute the adjusted monthly expense target ───────────────────────
+        // We normalise raw transaction amounts to the monthly record.  Overrides
+        // that exclude previously-included expenses shrink the target; overrides
+        // that include previously-excluded expenses grow it.
+        let fullRawExpSum = txs.filter { !$0.isRevenue }.map { abs($0.amount) }.reduce(0, +)
+        let baseExpScale  = fullRawExpSum > 0 ? mData.expenses / fullRawExpSum : 1.0
+
+        var effectiveExclusion = 0.0
+        if !overrides.isEmpty {
+            for tx in txs where !tx.isRevenue {
+                guard let override = overrides[tx.id] else { continue }
+                let wasExcluded = (tx.expenseCategory.flatMap(ExpenseCategory.init)?.excludedFromPL ?? false)
+                let nowExcluded = (ExpenseCategory(rawValue: override)?.excludedFromPL ?? false)
+                if !wasExcluded && nowExcluded { effectiveExclusion += abs(tx.amount) * baseExpScale }
+                if  wasExcluded && !nowExcluded { effectiveExclusion -= abs(tx.amount) * baseExpScale }
+            }
+        }
+        let adjustedMonthlyExp = max(0, mData.expenses - effectiveExclusion)
+
+        // ── Aggregate per-day amounts, skipping excluded expenses ─────────────
+        var txRevByDay = [Int: Double]()
+        var txExpByDay = [Int: Double]()
+
+        for tx in txs {
+            let d = cal.component(.day, from: tx.date)
+            if tx.isRevenue {
+                txRevByDay[d, default: 0] += tx.amount
+            } else {
+                let catRaw   = overrides[tx.id] ?? tx.expenseCategory ?? ""
+                let excluded = ExpenseCategory(rawValue: catRaw)?.excludedFromPL ?? false
+                if !excluded { txExpByDay[d, default: 0] += abs(tx.amount) }
+            }
+        }
+
+        // ── Normalise to monthly targets ──────────────────────────────────────
+        let rawRevSum          = txRevByDay.values.reduce(0, +)
+        let rawExpSumRemaining = txExpByDay.values.reduce(0, +)
+        let revScale    = rawRevSum          > 0 ? mData.revenue        / rawRevSum          : 1.0
+        let expScale    = rawExpSumRemaining > 0 ? adjustedMonthlyExp   / rawExpSumRemaining : 1.0
+
+        let activeDays: Int = {
+            if year < currentYear || (year == currentYear && month < currentMonth) {
+                return totalDays
+            } else if year == currentYear && month == currentMonth {
+                return currentDay
+            }
+            return 0
+        }()
+
+        return (1...totalDays).map { day in
+            let future = day > activeDays
+            return DailyFinancial(
+                id:       day,
+                revenue:  future ? 0 : (txRevByDay[day]  ?? 0) * revScale,
+                expenses: future ? 0 : (txExpByDay[day] ?? 0) * expScale,
+                isFuture: future
+            )
+        }
     }
 
     // MARK: - Private: calendar helpers
@@ -702,8 +955,8 @@ enum AppFinancials {
     /// on the first day of the quarter.  Each week's value is the proportional
     /// share of its constituent month-days, giving mathematically consistent
     /// totals without any hand-crafted numbers.
-    private static func buildWeeklyData(year: Int, quarter: Int) -> [WeeklyFinancial] {
-        let months = monthlyData(year: year)
+    private static func buildWeeklyData(year: Int, quarter: Int,
+                                         months: [MonthlyFinancial]) -> [WeeklyFinancial] {
         let startMonth = (quarter - 1) * 3 + 1   // 1-indexed: Q1→1, Q2→4, Q3→7, Q4→10
 
         var results: [WeeklyFinancial] = []
@@ -781,7 +1034,7 @@ enum AppFinancials {
         }
 
         guard activeDays > 0 else {
-            return (1...totalDays).map { DailyFinancial(id: $0, revenue: 0, expenses: 0) }
+            return (1...totalDays).map { DailyFinancial(id: $0, revenue: 0, expenses: 0, isFuture: true) }
         }
 
         // Generate weights: two overlapping sine waves for organic-looking variation
@@ -808,7 +1061,7 @@ enum AppFinancials {
             if day <= activeDays {
                 return DailyFinancial(id: day, revenue: revW[day-1], expenses: expW[day-1])
             }
-            return DailyFinancial(id: day, revenue: 0, expenses: 0)
+            return DailyFinancial(id: day, revenue: 0, expenses: 0, isFuture: true)
         }
     }
 }
