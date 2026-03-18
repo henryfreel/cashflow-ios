@@ -86,7 +86,7 @@ struct TxFilterSheet: View {
                     }
                     ForEach(options) { opt in
                         if opt.isHeader {
-                            TxFilterSectionHeader(title: opt.label)
+                            TxFilterSectionHeader(title: opt.label, topPadding: 24)
                         } else {
                             let state: TxCheckboxState =
                                 (pendingKeys.isEmpty || pendingKeys.contains(opt.id))
@@ -213,13 +213,14 @@ struct TxFilterSheet: View {
 
 struct TxFilterSectionHeader: View {
     let title: String
+    var topPadding: CGFloat = 8
     var body: some View {
         Text(title)
             .font(.custom(AppFont.Text.medium, size: 13))
             .foregroundStyle(Color.gray3)
             .tracking(0.6)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.top, 8)
+            .padding(.top, topPadding)
             .padding(.bottom, 8)
     }
 }
