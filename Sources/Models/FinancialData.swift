@@ -361,10 +361,16 @@ extension AppFinancials {
                 expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
         } else {
             // Normal months: spread COGS across days that sit between card payment rows.
+            // Tundra (0.48) is split: ~60% stays as Tundra (0.29), ~40% goes to Faire Wholesale (0.19).
             items.append(Transaction(
-                id: UUID(), date: day(3), amount: -expB.cogs * 0.48,
+                id: UUID(), date: day(3), amount: -expB.cogs * 0.29,
                 merchantName: "Tundra", subtitle: label(3),
                 locationName: "Hayes Valley", cardInfo: "Square Card 4812", type: .purchase,
+                expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
+            items.append(Transaction(
+                id: UUID(), date: day(8), amount: -expB.cogs * 0.19,
+                merchantName: "Faire Wholesale", subtitle: label(8),
+                locationName: nil, cardInfo: "Visa 7832", type: .purchase,
                 expenseCategory: ExpenseCategory.cogs.rawValue, isRevenue: false))
             items.append(Transaction(
                 id: UUID(), date: day(11), amount: -expB.cogs * 0.12,
@@ -1040,8 +1046,8 @@ enum AppFinancials {
             let sA = monthAbbrev[startM - 1]
             let eA = monthAbbrev[endM   - 1]
             let dateRange = startM == endM
-                ? "\(sA) \(startD) - \(sA) \(endD)"
-                : "\(sA) \(startD) - \(eA) \(endD)"
+                ? "\(sA) \(startD) – \(sA) \(endD)"
+                : "\(sA) \(startD) – \(eA) \(endD)"
 
             // All generated quarters are fully in the past — hasData == true for all weeks
             results.append(WeeklyFinancial(

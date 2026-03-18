@@ -60,10 +60,6 @@ struct TxFilterBar: View {
     // full total during the fade-out animation when filters are cleared.
     @State private var frozenCount: Int = 0
 
-    // Guards the keyboard-focus onChange so the pre-warm toggle doesn't
-    // accidentally trigger the keyboard before the user taps.
-    @State private var isPrewarming: Bool = false
-
     private var activeFilterCount: Int {
         (periodLabel.isEmpty ? 0 : 1)
         + (cashflow == "All" || cashflow.isEmpty ? 0 : 1)
@@ -122,13 +118,11 @@ struct TxFilterBar: View {
                                     searchText = ""
                                     withAnimation(.easeInOut(duration: 0.25)) { isSearching = false }
                                 } label: {
-                                    Image("CalNavArrow")
+                                    Image("NavBack")
                                         .renderingMode(.template)
                                         .resizable()
                                         .scaledToFit()
-                                        .rotationEffect(.degrees(-90))
                                         .foregroundStyle(Color.gray1)
-                                        .frame(width: 16, height: 16)
                                         .frame(width: 24, height: 24)
                                 }
                                 .buttonStyle(.plain)
@@ -161,12 +155,12 @@ struct TxFilterBar: View {
                                 if !searchText.isEmpty {
                                     Button {
                                         searchText = ""
-                                        // If the field lost focus (keyboard hidden), bring it back
                                         if !isFocused {
-                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                                                isFocused = true
-                                            }
+                                            // Keyboard already hidden — collapse bar back to chip.
+                                            withAnimation(.easeInOut(duration: 0.25)) { isSearching = false }
                                         }
+                                        // If focused, just clear the text; keyboard and bar stay active.
+                                        // Re-focus only happens when the user taps the text field directly.
                                     } label: {
                                         Image("TxSearchClear")
                                             .renderingMode(.template)
@@ -302,29 +296,10 @@ struct TxFilterBar: View {
             if showCountRow { frozenCount = newValue }
         }
         .onChange(of: isSearching) { _, newValue in
-            // Skip keyboard focus during the silent pre-warm toggle on appear.
-            guard !isPrewarming else { return }
             if newValue {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { isFocused = true }
             } else {
                 isFocused = false
-            }
-        }
-        .onAppear {
-            // Pre-warm the EXACT animation path the user will trigger on first tap:
-            // animate isSearching true→false at near-zero duration (0.0001 s < one frame)
-            // so it's invisible but forces SwiftUI to compile Metal shaders, start the
-            // CA display link, and cache geometry for the real view subtree.
-            // isPrewarming suppresses keyboard focus during the silent toggle.
-            isPrewarming = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                withAnimation(.easeInOut(duration: 0.0001)) { isSearching = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                    withAnimation(.easeInOut(duration: 0.0001)) { isSearching = false }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                        isPrewarming = false
-                    }
-                }
             }
         }
     }
@@ -420,14 +395,12 @@ struct TxSearchBar: View {
                     text = ""
                     withAnimation(.easeInOut(duration: 3.0)) { isSearching = false }
                 } label: {
-                    Image("CalNavArrow")
+                    Image("NavBack")
                         .renderingMode(.template)
                         .resizable()
                         .scaledToFit()
-                        .rotationEffect(.degrees(-90))
                         .foregroundStyle(Color.gray1)
-                        .frame(width: 16, height: 16)
-                        .frame(width: 24, height: 24)  // touch target
+                        .frame(width: 24, height: 24)
                 }
                 .buttonStyle(.plain)
 
@@ -606,10 +579,7 @@ struct TxChip: View {
 
 struct TxMonthSection: View {
     let group: TxMonthGroup
-    let lastID: UUID?
-    let hasMore: Bool
     var showLocation: Bool = true
-    let onLoadMore: () -> Void
     var onSelectTx: ((Transaction) -> Void)? = nil
 
     var body: some View {
@@ -625,9 +595,6 @@ struct TxMonthSection: View {
                     }
                 }
                 .padding(.horizontal, 24)
-                .onAppear {
-                    if tx.id == lastID && hasMore { onLoadMore() }
-                }
             }
         }
     }
@@ -644,6 +611,8 @@ struct TxRow: View {
     /// Controls the chevron direction for group rows (passed in from TxGroupRow).
     var isExpanded: Bool = false
 
+    @Environment(TransactionStore.self) private var txStore: TransactionStore?
+
     /// Internal and automated transfer rows show an account name as their title —
     /// the right subtitle is suppressed and the amount top-aligns with it.
     /// Bank transfers are excluded: their title is the bank name, so the source/
@@ -656,14 +625,22 @@ struct TxRow: View {
     }
 
     /// Right-side secondary text logic:
-    ///   • Transfer rows          → nil (account name is already the title)
-    ///   • Card purchase          → masked card/account identifier (cardInfo)
-    ///   • Account-level / sales  → location name (when showLocation)
+    ///   • Transfer rows            → nil (account name is already the title)
+    ///   • Revenue transactions     → location name (gift card, card, cash, online sales)
+    ///   • Transfer rows            → "Transfers" category label
+    ///   • Revenue transactions     → location name (with "Hayes Valley" fallback for online orders)
+    ///   • Expense transactions     → resolved category name (replaces card/account info)
     private var rightSubtitle: String? {
-        if isTransferRow { return nil }
-        if let card = transaction.cardInfo { return card }
-        if showLocation { return transaction.locationName }
-        return nil
+        if isTransferRow { return ExpenseCategory.transfers.rawValue }
+        if transaction.isRevenue {
+            guard showLocation else { return nil }
+            if case .onlineOrder = transaction.type {
+                return transaction.locationName ?? "Hayes Valley"
+            }
+            return transaction.locationName
+        }
+        // Expense: show the resolved category so reclassifications reflect immediately.
+        return txStore?.resolvedCategory(for: transaction) ?? transaction.expenseCategory
     }
 
     private var isGroup: Bool {
@@ -672,7 +649,7 @@ struct TxRow: View {
     }
 
     var body: some View {
-        HStack(alignment: isTransferRow ? .top : .center, spacing: 16) {
+        HStack(alignment: .center, spacing: 16) {
             TxIcon(transaction: transaction)
             TxRowText(name: transaction.merchantName, sub: transaction.subtitle)
             Spacer(minLength: 8)
@@ -980,13 +957,15 @@ struct TxIconConfig {
                 bg: Color.gray6,
                 content: AnyView(
                     // SVG is 20×17pt (35:30 ratio at 20pt width) inside a 24pt container.
-                    // At 2× scaleEffect in TxDetailIcon: 40×34pt inside a 48pt container.
+                    // Offset -1pt nudges the bottom-heavy icon to appear visually centered;
+                    // at 2× scaleEffect in TxDetailIcon the offset scales to -2pt automatically.
                     Image("TxGiftCardIcon")
                         .resizable().renderingMode(.template)
                         .scaledToFit()
                         .frame(width: 20, height: 17)
                         .foregroundStyle(Color.gray1)
                         .frame(width: 24, height: 24)
+                        .offset(y: -1)
                 ),
                 whiteAvatarBorder: true)
 
@@ -1057,9 +1036,9 @@ struct TxIconConfig {
                 content: AnyView(Image("txn-home-depot").resizable().scaledToFill()))
         case "Whole Foods":
             return TxIconConfig(
-                kind: .logoImage(border: false),
-                bg: Color(red: 0.0, green: 0.420, blue: 0.235),
-                content: AnyView(Image("txn-whole-foods").resizable().scaledToFit()))
+                kind: .fullImage(border: false),
+                bg: Color(red: 0x2E/255.0, green: 0x69/255.0, blue: 0x47/255.0),
+                content: AnyView(Image("txn-whole foods").resizable().scaledToFill()))
         case "Faire Wholesale":
             return TxIconConfig(
                 kind: .fullImage(border: true),

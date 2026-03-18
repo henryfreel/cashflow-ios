@@ -135,7 +135,7 @@ struct ProfitLossDetailView: View {
         }
     }
 
-    private var donutPeriodLabel: String { "Jan - Dec \(selectedYear)" }
+    private var donutPeriodLabel: String { "Jan – Dec \(selectedYear)" }
 
     /// The proportion of the annual total that the selected donut segment represents.
     /// Fixed proportions mean this equals the category's share for any sub-period too.
@@ -414,7 +414,7 @@ struct ProfitLossDetailView: View {
         case "Month":
             return "\(Self.monthNames[selectedMonth - 1]) \(selectedYear)"
         default: // "Year"
-            return "Jan - Dec, \(selectedYear)"
+            return "Jan – Dec, \(selectedYear)"
         }
     }
 
@@ -529,7 +529,12 @@ struct ProfitLossDetailView: View {
         case "Expenses":
             let catName = selectedCategoryName
             return raw.filter {
-                !$0.isRevenue && (catName.isEmpty || $0.expenseCategory == catName)
+                guard !$0.isRevenue else { return false }
+                guard !catName.isEmpty else { return true }
+                // Use the resolved (possibly overridden) category so the list
+                // reflects any reclassifications made in the detail view.
+                let resolved = txStore?.resolvedCategory(for: $0) ?? $0.expenseCategory
+                return resolved == catName
             }
         default: // P&L — show everything
             return raw
@@ -1373,10 +1378,12 @@ struct ProfitLossDetailView: View {
                 }
                 return selectedCategoryName.isEmpty ? nil : selectedCategoryName
             }()
+            let prevNonce = navState?.txFilter.nonce ?? 0
             navState?.txFilter = TxFilter(
                 periodLabel: periodNavTitle,
                 cashflow:    transactionCashflow,
-                category:    categoryKey
+                category:    categoryKey,
+                nonce:       prevNonce + 1
             )
             navState?.selectedTab = .transactions
         } label: {

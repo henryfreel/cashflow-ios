@@ -8,6 +8,10 @@ struct TxFilter {
     var cashflow: String = "All"
     var category: String? = nil
     var location: String? = nil
+    /// Incremented every time "View transactions" is tapped, even when the
+    /// filter content is identical. This guarantees txFilterKey changes and
+    /// TransactionsView is always recreated with fresh state from the detail page.
+    var nonce: Int = 0
 }
 
 /// Shared observable object used to drive tab selection and populate the
@@ -24,11 +28,11 @@ final class AppNavigationState {
     var txFilterSheetHeight: CGFloat = 300
     var txFilterSheetContent: AnyView = AnyView(EmptyView())
 
-    /// Date-picker sheet — parameters stored directly so ContentView can render
-    /// TxDatePickerSheet as a concrete type (not AnyView), preserving its identity
-    /// when txDatePickerHeight changes during month navigation.
+    /// Date sheet — parameters stored directly so ContentView can render
+    /// TxDateSheet as a concrete type (not AnyView), preserving its identity
+    /// when txDatePickerHeight changes during calendar navigation inside the sheet.
     var txDatePickerPresented: Bool = false
-    var txDatePickerHeight: CGFloat = TxDatePickerSheet.compactHeight
+    var txDatePickerHeight: CGFloat = TxDateSheet.compactHeight
     var txDatePickerInitialStart: Date? = nil
     var txDatePickerInitialEnd: Date? = nil
     var txDatePickerOnCommit: ((Date?, Date?) -> Void)? = nil
@@ -78,16 +82,16 @@ struct ContentView: View {
             ) {
                 navState.txFilterSheetContent
             }
-            // Date-picker sheet — rendered as a concrete type (not AnyView) so that
-            // SwiftUI preserves TxDatePickerSheet's identity (and its @State) when
-            // txDatePickerHeight changes during month navigation.
+            // Date sheet — rendered as a concrete type (not AnyView) so that
+            // SwiftUI preserves TxDateSheet's identity (and its @State) when
+            // txDatePickerHeight changes during calendar navigation inside the sheet.
             .customBottomSheet(
                 isPresented:   $navState.txDatePickerPresented,
                 compactHeight: navState.txDatePickerHeight
             ) {
                 if let onCommit = navState.txDatePickerOnCommit,
                    let onDone   = navState.txDatePickerOnDone {
-                    TxDatePickerSheet(
+                    TxDateSheet(
                         initialStart:   navState.txDatePickerInitialStart,
                         initialEnd:     navState.txDatePickerInitialEnd,
                         onCommit:       onCommit,
@@ -106,10 +110,11 @@ struct ContentView: View {
     }
 
     // A unique key for the current Transactions filter — forces the NavigationStack
-    // to recreate (applying fresh init-time state) only when the filter changes,
-    // e.g. when the user navigates here from a P&L detail page.
+    // to recreate (applying fresh init-time state) whenever a P&L detail page fires
+    // "View transactions". The nonce increments on every such tap so repeated taps
+    // with identical filter content still produce a fresh view.
     private var txFilterKey: String {
-        "\(navState.txFilter.periodLabel)|\(navState.txFilter.cashflow)|\(navState.txFilter.category ?? "")|\(navState.txFilter.location ?? "")"
+        "\(navState.txFilter.nonce)|\(navState.txFilter.periodLabel)|\(navState.txFilter.cashflow)|\(navState.txFilter.category ?? "")|\(navState.txFilter.location ?? "")"
     }
 
     @ViewBuilder

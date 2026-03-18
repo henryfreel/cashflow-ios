@@ -163,8 +163,10 @@ struct TxFilterSheet: View {
     private func drillDownHeader(onBack: @escaping () -> Void) -> some View {
         HStack(spacing: 0) {
             Button(action: onBack) {
-                Image(systemName: "arrow.left")
-                    .font(.system(size: 15, weight: .semibold))
+                Image("NavBack")
+                    .resizable()
+                    .renderingMode(.template)
+                    .scaledToFit()
                     .foregroundStyle(Color.gray1)
                     .frame(width: 24, height: 24)
                     .padding(12)

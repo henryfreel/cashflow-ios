@@ -140,11 +140,14 @@ struct TransactionDetailView: View {
         return result
     }
 
-    /// True for internal transactions (card payments, automated/internal transfers).
-    /// These do not show the completion status card at the bottom.
+    /// True for transactions that do not show the completion status card at the bottom.
+    /// Card payments, transfers, and all revenue transaction types (online, cash, gift card)
+    /// are self-evidently complete from the payment rails — no confirmation card needed.
     private var isInternalTransaction: Bool {
         switch transaction.type {
-        case .cardPayment, .cardPaymentGroup, .internalTransfer, .automatedTransfer:
+        case .cardPayment, .cardPaymentGroup,
+             .internalTransfer, .automatedTransfer,
+             .onlineOrder, .cashPayment, .giftCard:
             return true
         default:
             return false
@@ -309,6 +312,9 @@ struct TransactionDetailView: View {
         switch transaction.type {
         case .cardPayment, .cardPaymentGroup:
             return transaction.locationName
+        case .onlineOrder:
+            // Online payments always report through the primary location.
+            return transaction.locationName ?? "Hayes Valley"
         case .purchase where transaction.merchantName == "Square Payroll":
             return transaction.locationName
         case .bankTransfer:
@@ -358,8 +364,8 @@ struct TransactionDetailView: View {
                 VStack(spacing: 0) {
                     headerSection(safeTop: geo.safeAreaInsets.top)
 
-                    // Fixed 56pt gap below the header address/subtitle line
-                    Color.clear.frame(height: 56)
+                    // Fixed 16pt gap below the header address/subtitle line
+                    Color.clear.frame(height: 16)
 
                     // Amount + date + category — anchored 56pt below header
                     middleSection
@@ -530,19 +536,19 @@ struct TransactionDetailView: View {
                         Text(fakeStreet)
                             .font(.paragraph20)
                             .lineSpacing(8)
-                            .foregroundStyle(Color.black.opacity(0.55))
+                            .foregroundStyle(Color.gray2)
                             .multilineTextAlignment(.center)
                         Text(fakeCity)
                             .font(.paragraph20)
                             .lineSpacing(8)
-                            .foregroundStyle(Color.black.opacity(0.55))
+                            .foregroundStyle(Color.gray2)
                             .multilineTextAlignment(.center)
                     }
                 } else if let subtitle = locationSubtitle {
                     Text(subtitle)
                         .font(.paragraph20)
                         .lineSpacing(8)
-                        .foregroundStyle(Color.black.opacity(0.55))
+                        .foregroundStyle(Color.gray2)
                         .multilineTextAlignment(.center)
                 }
             }
@@ -568,19 +574,37 @@ struct TransactionDetailView: View {
 
                 Text(dateTimeString)
                     .font(.paragraph20)
-                    .foregroundStyle(Color.gray3)
+                    .foregroundStyle(Color.gray2)
             }
             .multilineTextAlignment(.center)
 
-            // Category pill
+            // Category pill + optional exclusion notice
             if let name = categoryName {
-                Button {
-                    if !isCategoryDisabled { showingCategoryPicker = true }
-                } label: {
-                    categoryPill(name: name, isDisabled: isCategoryDisabled)
+                VStack(spacing: 16) {
+                    Button {
+                        if !isCategoryDisabled { showingCategoryPicker = true }
+                    } label: {
+                        categoryPill(name: name, isDisabled: isCategoryDisabled)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isCategoryDisabled)
+
+                    if name == ExpenseCategory.personal.rawValue {
+                        Text("Personal expenses are excluded from all expense, revenue, and net profit calculations")
+                            .font(.custom(AppFont.Text.regular, size: 12))
+                            .lineSpacing(4)
+                            .foregroundStyle(Color.gray3)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: 278)
+                    } else if name == ExpenseCategory.transfers.rawValue {
+                        Text("Transfers are excluded from all expense, revenue, and net profit calculations")
+                            .font(.custom(AppFont.Text.regular, size: 12))
+                            .lineSpacing(4)
+                            .foregroundStyle(Color.gray3)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: 278)
+                    }
                 }
-                .buttonStyle(.plain)
-                .disabled(isCategoryDisabled)
             }
         }
         .padding(.horizontal, 24)
@@ -601,9 +625,11 @@ struct TransactionDetailView: View {
                 .font(.custom(AppFont.Text.semiBold, size: 14))
                 .foregroundStyle(fg)
 
-            Image(systemName: "chevron.down")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(fg)
+            Image("CatChevronDown")
+                .resizable()
+                .renderingMode(.template)
+                .scaledToFit()
+                .foregroundStyle(Color.gray1)
                 .frame(width: 16, height: 16)
         }
         .padding(.horizontal, 16)
@@ -638,7 +664,7 @@ struct TransactionDetailView: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 16)
         .padding(.vertical, 32)
-        .background(Color.gray7, in: RoundedRectangle(cornerRadius: 16))
+        .background(Color.gray7, in: RoundedRectangle(cornerRadius: 12))
     }
 }
 

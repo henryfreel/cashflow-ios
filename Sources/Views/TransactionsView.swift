@@ -24,6 +24,7 @@ struct TransactionsView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(AppNavigationState.self) private var navState
+    @Environment(TransactionStore.self) private var txStore: TransactionStore?
 
     // MARK: Init
 
@@ -92,6 +93,58 @@ struct TransactionsView: View {
         options.first(where: { $0.id == key })?.label ?? key
     }
 
+    /// Formats a date range for the filter chip and All Filters sheet, matching
+    /// the conventions used in the P&L detail pages:
+    ///   • Single day            → "Mon, Dec 8"
+    ///   • Month (starts on 1st, same month) → "December 2024"
+    ///   • Quarter (starts on Q start, same year) → "Q4 2024"
+    ///   • Year (Jan 1 → any Dec date, same year) → "Jan – Dec, 2024"
+    ///   • Any other range       → "Oct 10 – Oct 17"  /  "Dec 1, 2023 – Jan 5, 2024"
+    static func chipDateLabel(start: Date, end: Date?) -> String {
+        let cal = Calendar.current
+        let fmt = DateFormatter(); fmt.locale = Locale(identifier: "en_US")
+        let effectiveEnd = end ?? start
+
+        // Single day
+        if cal.isDate(start, inSameDayAs: effectiveEnd) {
+            fmt.dateFormat = "EEE, MMM d"
+            return fmt.string(from: start)
+        }
+
+        let sy = cal.component(.year,  from: start)
+        let sm = cal.component(.month, from: start)
+        let sd = cal.component(.day,   from: start)
+        let ey = cal.component(.year,  from: effectiveEnd)
+        let em = cal.component(.month, from: effectiveEnd)
+
+        // Year: starts Jan 1, end lands in December of the same year
+        if sy == ey && sm == 1 && sd == 1 && em == 12 {
+            return "Jan – Dec, \(sy)"
+        }
+
+        // Month: starts on the 1st, end in the same month and year
+        if sd == 1 && sy == ey && sm == em {
+            fmt.dateFormat = "MMMM yyyy"
+            return fmt.string(from: start)
+        }
+
+        // Quarter: starts on a quarter-opening month (1, 4, 7, 10), day 1, same year
+        if sy == ey && sd == 1 && [1, 4, 7, 10].contains(sm) {
+            let q = (sm - 1) / 3 + 1
+            return "Q\(q) \(sy)"
+        }
+
+        // Generic range
+        fmt.dateFormat = "MMM d"
+        let startStr = fmt.string(from: start)
+        let endStr   = fmt.string(from: effectiveEnd)
+        if sy == ey {
+            return "\(startStr) – \(endStr)"
+        } else {
+            return "\(startStr), \(sy) – \(endStr), \(ey)"
+        }
+    }
+
     private func options(for f: TxActiveFilter) -> [TxFilterOption] {
         switch f {
         case .location: return Self.locationOptions
@@ -122,32 +175,7 @@ struct TransactionsView: View {
 
     private var dateLabelValue: String? {
         guard let start = selectedStartDate else { return nil }
-        let cal = Calendar.current
-        let fmt = DateFormatter(); fmt.locale = Locale(identifier: "en_US")
-
-        if let end = selectedEndDate {
-            let sy = cal.component(.year,  from: start)
-            let sm = cal.component(.month, from: start)
-            let ey = cal.component(.year,  from: end)
-            let em = cal.component(.month, from: end)
-
-            if sy == ey && sm == em {
-                // Same month — "Dec 2024"
-                fmt.dateFormat = "MMM yyyy"
-                return fmt.string(from: start)
-            } else if sy == ey {
-                // Same year — "Jan - Dec 2024"
-                fmt.dateFormat = "MMM"
-                return "\(fmt.string(from: start)) - \(fmt.string(from: end)) \(sy)"
-            } else {
-                // Cross-year — "Jan 2023 - Dec 2024"
-                fmt.dateFormat = "MMM yyyy"
-                return "\(fmt.string(from: start)) - \(fmt.string(from: end))"
-            }
-        } else {
-            fmt.dateFormat = "MMM d, yyyy"
-            return fmt.string(from: start)
-        }
+        return Self.chipDateLabel(start: start, end: selectedEndDate)
     }
 
     // MARK: Filtered items
@@ -187,7 +215,10 @@ struct TransactionsView: View {
                     }
                 } else {
                     guard !expKeys.isEmpty else { return false }
-                    guard let cat = tx.expenseCategory else { return false }
+                    // Use the resolved (possibly overridden) category so that
+                    // reclassified transactions immediately reflect their new category.
+                    guard let cat = txStore?.resolvedCategory(for: tx) ?? tx.expenseCategory
+                    else { return false }
                     return expKeys.contains(cat)
                 }
             }()
@@ -246,7 +277,7 @@ struct TransactionsView: View {
             return (cal.startOfDay(for: s), min(cal.startOfDay(for: e), horizon))
         }
 
-        // "2024" or "Jan - Dec, 2024"
+        // "2024" or "Jan – Dec, 2024"
         let yearStr = label.contains(",")
             ? (label.components(separatedBy: ",").last?.trimmingCharacters(in: .whitespaces) ?? "")
             : label.trimmingCharacters(in: .whitespaces)
@@ -326,17 +357,9 @@ struct TransactionsView: View {
         navState.txAllFiltersSheetPresented = true
     }
 
-    /// Stores date-picker parameters on navState so ContentView can render
-    /// TxDatePickerSheet directly as a concrete type (avoiding AnyView identity loss).
+    /// Stores date-sheet parameters on navState so ContentView can render
+    /// TxDateSheet directly as a concrete type (avoiding AnyView identity loss).
     private func presentDatePicker() {
-        // Replicate TxDatePickerSheet.init's month-clamping so we can compute
-        // the correct sheet height before the sheet is even created.
-        let cal      = Calendar.current
-        let appMax   = cal.date(from: DateComponents(year: 2024, month: 12, day: 1))!
-        let rawRef   = selectedStartDate ?? appMax
-        let rawMonth = cal.date(from: cal.dateComponents([.year, .month], from: rawRef))!
-        let initialMonth = rawMonth > appMax ? appMax : rawMonth
-
         navState.txDatePickerInitialStart = selectedStartDate
         navState.txDatePickerInitialEnd   = selectedEndDate
         navState.txDatePickerOnCommit     = { [navState] start, end in
@@ -345,8 +368,8 @@ struct TransactionsView: View {
             visibleCount      = 15
             _ = navState  // capture to silence warning
         }
-        navState.txDatePickerOnDone   = { navState.txDatePickerPresented = false }
-        navState.txDatePickerHeight   = TxDatePickerSheet.compactHeight(for: initialMonth)
+        navState.txDatePickerOnDone    = { navState.txDatePickerPresented = false }
+        navState.txDatePickerHeight    = TxDateSheet.compactHeight
         navState.txDatePickerPresented = true
     }
 
@@ -382,19 +405,28 @@ struct TransactionsView: View {
             )
             .padding(.top, 8)
 
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 0) {
-                    TxPagedList(allItems: displayItems,
-                                visibleCount: $visibleCount,
-                                showLocation: showLocation,
-                                onSelectTx: { selectedTransaction = $0 })
+            ScrollViewReader { proxy in
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Color.clear.frame(height: 0).id("txListTop")
+                        TxPagedList(allItems: displayItems,
+                                    visibleCount: $visibleCount,
+                                    showLocation: showLocation,
+                                    onSelectTx: { selectedTransaction = $0 })
+                    }
                 }
-            }
-            .contentMargins(.bottom, 94, for: .scrollContent)
-            .onScrollGeometryChange(for: Bool.self) { geo in
-                geo.contentOffset.y + geo.contentInsets.top > 0
-            } action: { _, scrolled in
-                withAnimation(.easeInOut(duration: 0.2)) { isScrolled = scrolled }
+                .scrollDismissesKeyboard(.immediately)
+                .contentMargins(.bottom, 94, for: .scrollContent)
+                .onScrollGeometryChange(for: Bool.self) { geo in
+                    geo.contentOffset.y + geo.contentInsets.top > 0
+                } action: { _, scrolled in
+                    withAnimation(.easeInOut(duration: 0.2)) { isScrolled = scrolled }
+                }
+                .onChange(of: isSearching) { _, searching in
+                    if !searching {
+                        withAnimation { proxy.scrollTo("txListTop", anchor: .top) }
+                    }
+                }
             }
         }
         .overlay {
@@ -443,16 +475,13 @@ private struct TxPagedList: View {
     var showLocation: Bool = true
     var onSelectTx: ((Transaction) -> Void)? = nil
     var body: some View {
-        let slice  = Array(allItems.prefix(visibleCount))
-        let groups = txBuildGroups(from: slice)
-        let lastID = groups.last?.items.last?.id
+        let slice   = Array(allItems.prefix(visibleCount))
+        let groups  = txBuildGroups(from: slice)
         let canLoad = visibleCount < allItems.count
         LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
             ForEach(groups) { g in
                 Section {
-                    TxMonthSection(group: g, lastID: lastID, hasMore: canLoad,
-                                   showLocation: showLocation,
-                                   onLoadMore: { visibleCount = min(visibleCount + 15, allItems.count) },
+                    TxMonthSection(group: g, showLocation: showLocation,
                                    onSelectTx: onSelectTx)
                         .padding(.bottom, 16)
                 } header: {
@@ -463,6 +492,18 @@ private struct TxPagedList: View {
                         .padding(.horizontal, 24)
                         .background(Color.white)
                 }
+            }
+            // Sentinel that auto-advances the page. A new identity each time
+            // visibleCount changes so onAppear always fires — this cascades
+            // until the content overflows the viewport, then stops until the
+            // user scrolls down to it.
+            if canLoad {
+                Color.clear
+                    .frame(height: 1)
+                    .id("load-more-\(visibleCount)")
+                    .onAppear {
+                        visibleCount = min(visibleCount + 15, allItems.count)
+                    }
             }
         }
         .padding(.bottom, 32)

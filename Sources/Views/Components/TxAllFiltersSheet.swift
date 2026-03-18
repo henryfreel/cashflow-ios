@@ -121,7 +121,7 @@ struct TxAllFiltersSheet: View {
                     Color.white
                         .padding(.top, -24)
                     if filter == .date {
-                        TxDatePickerSheet(
+                        TxDateSheet(
                             initialStart: dateStart,
                             initialEnd:   dateEnd,
                             onCommit: { start, end in
@@ -208,17 +208,7 @@ struct TxAllFiltersSheet: View {
     // MARK: - Navigation helpers
 
     private func drillInto(_ filter: TxActiveFilter) {
-        let h: CGFloat
-        if filter == .date {
-            let cal    = Calendar.current
-            let appMax = cal.date(from: DateComponents(year: 2024, month: 12, day: 1))!
-            let rawRef = dateStart ?? appMax
-            let raw    = cal.date(from: cal.dateComponents([.year, .month], from: rawRef))!
-            let month  = raw > appMax ? appMax : raw
-            h = TxDatePickerSheet.compactHeight(for: month)
-        } else {
-            h = filterSheetHeight(filter)
-        }
+        let h: CGFloat = filter == .date ? TxDateSheet.compactHeight : filterSheetHeight(filter)
         withAnimation(.spring(response: 0.38, dampingFraction: 0.88)) {
             drillFilter = filter
             onHeightChange?(h)
@@ -273,27 +263,7 @@ struct TxAllFiltersSheet: View {
     /// Returns "" when no date is selected so the row shows no secondary text.
     private var computedDateValue: String {
         guard let start = dateStart else { return "" }
-        let cal = Calendar.current
-        let fmt = DateFormatter(); fmt.locale = Locale(identifier: "en_US")
-        if let end = dateEnd {
-            let sy = cal.component(.year,  from: start)
-            let sm = cal.component(.month, from: start)
-            let ey = cal.component(.year,  from: end)
-            let em = cal.component(.month, from: end)
-            if sy == ey && sm == em {
-                fmt.dateFormat = "MMM yyyy"
-                return fmt.string(from: start)
-            } else if sy == ey {
-                fmt.dateFormat = "MMM"
-                return "\(fmt.string(from: start)) – \(fmt.string(from: end)) \(sy)"
-            } else {
-                fmt.dateFormat = "MMM yyyy"
-                return "\(fmt.string(from: start)) – \(fmt.string(from: end))"
-            }
-        } else {
-            fmt.dateFormat = "MMM d, yyyy"
-            return fmt.string(from: start)
-        }
+        return TransactionsView.chipDateLabel(start: start, end: dateEnd)
     }
 }
 
@@ -318,10 +288,13 @@ private struct AllFiltersRow: View {
                         .foregroundStyle(Color.black.opacity(0.9))
                 }
 
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color.gray3)
-                    .frame(width: 16, height: 16)
+                Image("SheetRowChevron")
+                    .resizable()
+                    .renderingMode(.template)
+                    .scaledToFit()
+                    .rotationEffect(.degrees(-90))
+                    .foregroundStyle(Color.gray4)
+                    .frame(width: 24, height: 24)
             }
             .frame(height: 56)
             .contentShape(Rectangle())
