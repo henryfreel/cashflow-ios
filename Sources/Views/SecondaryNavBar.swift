@@ -16,8 +16,6 @@ struct SecondaryNavBar: View {
     /// When true, renders the title left-aligned at the leading edge instead of
     /// centered via overlay. Use for top-level pages that have no back button.
     var leftAlignTitle: Bool = false
-    var isScrolled: Bool = false
-
     var body: some View {
         HStack(alignment: .center, spacing: 0) {
             if leftAlignTitle {
@@ -62,7 +60,7 @@ struct SecondaryNavBar: View {
             .padding(12)
             .background(Color.gray6, in: Capsule())
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, 16)
         .padding(.vertical, 16)
         .frame(maxWidth: .infinity)
         .overlay {
@@ -92,15 +90,6 @@ struct SecondaryNavBar: View {
             }
         }
         .background(Color.white)
-        .overlay(alignment: .bottom) {
-            if isScrolled {
-                Rectangle()
-                    .fill(Color.gray5)
-                    .frame(height: 1)
-                    .transition(.opacity)
-            }
-        }
-        .animation(.easeInOut(duration: 0.2), value: isScrolled)
     }
 }
 
@@ -109,7 +98,7 @@ struct SecondaryNavBar: View {
     VStack(spacing: 24) {
         SecondaryNavBar(title: "Profit & Loss", onBack: {},
                         centerSubtitle: "2024 • All locations")
-        SecondaryNavBar(title: "Details", onBack: {}, isScrolled: true)
+        SecondaryNavBar(title: "Details", onBack: {})
     }
     .padding(.top)
 }

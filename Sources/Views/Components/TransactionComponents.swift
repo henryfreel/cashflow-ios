@@ -552,6 +552,7 @@ struct TxChip: View {
     let label: String
     var value: String? = nil
     var onTap: (() -> Void)? = nil
+    var horizontalPadding: CGFloat = 12
 
     var body: some View {
         let chip = HStack(spacing: 6) {
@@ -560,7 +561,7 @@ struct TxChip: View {
                 Text(v).font(.paragraphSemibold20).foregroundStyle(Color.gray1)
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, horizontalPadding)
         .frame(height: 40)
         .overlay {
             RoundedRectangle(cornerRadius: 6)
@@ -572,6 +573,122 @@ struct TxChip: View {
         } else {
             chip
         }
+    }
+}
+
+// MARK: - YoY change badge
+
+/// Pill badge showing a percentage change versus the prior year.
+/// Positive values use green7 background + green3 text with an up arrow;
+/// negative values use red7 background + red3 text with a down arrow.
+/// Used on the P&L net profit hero row and anywhere else a compact YoY % is needed.
+struct YoyBadge: View {
+    let pct: Double
+
+    private var isPositive: Bool { pct >= 0 }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(isPositive ? "iconTinyArrowUp" : "iconTinyArrowDown")
+                .resizable()
+                .renderingMode(.template)
+                .scaledToFit()
+                .frame(width: 8, height: 6)
+                .foregroundStyle(isPositive ? Color.green1 : Color.red1)
+
+            Text(String(format: "%.2f%%", abs(pct)))
+                .font(.paragraphSemibold20)
+                .foregroundStyle(isPositive ? Color.green1 : Color.red1)
+                .fixedSize()
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(isPositive ? Color.green7 : Color.red7)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+// MARK: - P&L / Detail page filter chips bar
+
+/// Shared filter chips bar used on the Profit & Loss, Revenue, and Expenses detail pages.
+/// Period chip: left/right arrows navigate periods; tapping the label opens the date sheet.
+/// "vs. Prior year" chip and all-filters icon button share the same TxChip styling.
+struct PLFilterChipsBar: View {
+    let periodLabel: String
+    let canGoBack: Bool
+    let canGoForward: Bool
+    let onBack: () -> Void
+    let onForward: () -> Void
+    var onTapPeriod: (() -> Void)? = nil
+    var onTapAllFilters: (() -> Void)? = nil
+
+    var body: some View {
+        HStack(spacing: 8) {
+            periodChip
+            TxChip(label: "vs.", value: "Prior year", horizontalPadding: 10)
+            allFiltersButton
+        }
+    }
+
+    private var periodChip: some View {
+        HStack(spacing: 0) {
+            Button(action: onBack) {
+                Image("icon16ChevronLeft")
+                    .resizable()
+                    .renderingMode(.template)
+                    .scaledToFit()
+                    .frame(width: 16, height: 16)
+                    .foregroundStyle(canGoBack ? Color.gray1 : Color.gray4)
+            }
+            .buttonStyle(.plain)
+
+            Button(action: { onTapPeriod?() }) {
+                Text(periodLabel)
+                    .font(.paragraphSemibold20)
+                    .foregroundStyle(Color.gray1)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 4)
+            }
+            .buttonStyle(.plain)
+
+            Button(action: onForward) {
+                Image("icon16ChevronRight")
+                    .resizable()
+                    .renderingMode(.template)
+                    .scaledToFit()
+                    .frame(width: 16, height: 16)
+                    .foregroundStyle(canGoForward ? Color.gray1 : Color.gray4)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 8)
+        .frame(height: 40)
+        .frame(maxWidth: .infinity)
+        .overlay {
+            RoundedRectangle(cornerRadius: 6)
+                .strokeBorder(Color.gray1.opacity(0.15), lineWidth: 1)
+        }
+    }
+
+    private var allFiltersButton: some View {
+        Button(action: { onTapAllFilters?() }) {
+            Image("TxFilterIcon")
+                .resizable()
+                .renderingMode(.template)
+                .scaledToFit()
+                .foregroundStyle(Color.gray1)
+                .frame(width: 18, height: 12)
+                .frame(width: 24, height: 24)
+                .padding(8)
+                .frame(width: 40, height: 40)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 6)
+                        .strokeBorder(Color.gray1.opacity(0.15), lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
     }
 }
 

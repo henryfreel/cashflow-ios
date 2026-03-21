@@ -15,7 +15,7 @@ struct HomeView: View {
     @State private var isScrolled = false
 
     // Period state lifted from ProfitLossCard so it can be passed to ProfitLossDetailView.
-    @State private var cardPeriod:   String = "1M"
+    @State private var cardPeriod:   String = "1Y"
     @State private var cardYear:     Int    = AppFinancials.currentYear
     @State private var cardQuarter:  Int    = AppFinancials.currentQuarter
     @State private var cardMonth:    Int    = AppFinancials.currentMonth
@@ -78,10 +78,8 @@ struct HomeView: View {
         }
         .navigationDestination(isPresented: $showProfitLossDetail) {
             ProfitLossDetailView(
-                initialPeriod:  { switch cardPeriod { case "1Q": return "Quarter"; case "1Y": return "Year"; default: return "Month" } }(),
-                initialYear:    cardYear,
-                initialQuarter: cardQuarter,
-                initialMonth:   cardMonth
+                initialPeriod: "Year",
+                initialYear:   AppFinancials.currentYear
             )
         }
         .navigationBarHidden(true)

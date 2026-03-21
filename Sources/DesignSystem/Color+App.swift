@@ -27,21 +27,21 @@ extension Color {
 /// Seven greens from the Figma color palette (darkest → lightest).
 ///
 /// Swatch reference:
-///   green1  #007828   darkest
+///   green1  #007D2A   darkest
 ///   green2  #009933
 ///   green3  #00B23B   primary text/icon, fills
 ///   green4  #33C162   medium fill
 ///   green5  #64D188   lighter fill
 ///   green6  #A1EFBB   very light tint
-///   green7  #CCFFDD   background tint
+///   green7  #E6FFEA   background tint
 extension Color {
-    static let green1 = Color(red: 0/255, green: 120/255, blue: 40/255)    // #007828
+    static let green1 = Color(red: 0/255, green: 125/255, blue: 42/255)    // #007D2A
     static let green2 = Color(red: 0/255, green: 153/255, blue: 51/255)   // #009933
     static let green3 = Color(red: 0/255, green: 178/255, blue: 59/255)   // #00B23B
     static let green4 = Color(red: 51/255, green: 193/255, blue: 98/255)  // #33c162
     static let green5 = Color(red: 100/255, green: 209/255, blue: 136/255) // #64d188
     static let green6 = Color(red: 161/255, green: 239/255, blue: 187/255) // #a1efbb
-    static let green7 = Color(red: 204/255, green: 255/255, blue: 221/255) // #ccffdd
+    static let green7 = Color(red: 230/255, green: 255/255, blue: 234/255) // #E6FFEA
 }
 
 // MARK: - Figma Blue Scale
@@ -73,21 +73,21 @@ extension Color {
 /// Seven reds from the Figma color palette (darkest → lightest).
 ///
 /// Swatch reference:
-///   red1  #850006   darkest
+///   red1  #BF0120   darkest
 ///   red2  #99001A   dark red
 ///   red3  #D2001D   primary fill / notification badges
 ///   red4  #E0667B   medium
 ///   red5  #FDA2B2   light
 ///   red6  #FFCCD5   lighter
-///   red7  #FFE1E6   background tint
+///   red7  #FFE5EA   background tint
 extension Color {
-    static let red1 = Color(red: 133/255, green: 0/255, blue: 6/255)      // #850006
+    static let red1 = Color(red: 191/255, green: 1/255, blue: 32/255)      // #BF0120
     static let red2 = Color(red: 153/255, green: 0/255, blue: 26/255)    // #99001a
     static let red3 = Color(red: 210/255, green: 0/255, blue: 29/255)   // #d2001d
     static let red4 = Color(red: 224/255, green: 102/255, blue: 123/255) // #e0667b
     static let red5 = Color(red: 253/255, green: 162/255, blue: 178/255) // #fda2b2
     static let red6 = Color(red: 255/255, green: 204/255, blue: 213/255)  // #ffccd5
-    static let red7 = Color(red: 255/255, green: 225/255, blue: 230/255)  // #ffe1e6
+    static let red7 = Color(red: 255/255, green: 229/255, blue: 234/255)  // #FFE5EA
 }
 
 // MARK: - Device Corner Radius

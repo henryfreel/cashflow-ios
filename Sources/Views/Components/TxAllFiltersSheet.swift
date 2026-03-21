@@ -34,8 +34,12 @@ struct TxAllFiltersSheet: View {
     /// Called whenever the sheet needs a different compact height.
     var onHeightChange: ((CGFloat) -> Void)?                     = nil
 
-    /// Compact height = top-pad(24) + header(48) + gap(16) + 4 rows × 56 + bottom-pad(64)
-    static let compactHeight: CGFloat = 376
+    /// Whether to show the Date row. Set false when the caller provides its own date navigation.
+    var showDateRow: Bool = true
+
+    /// Compact height = top-pad(24) + header(48) + gap(16) + N rows × 56 + bottom-pad(64)
+    static let compactHeight: CGFloat = 376          // 4 rows (with date)
+    static let compactHeightNoDate: CGFloat = 320    // 3 rows (without date)
 
     // MARK: Internal navigation state
 
@@ -195,7 +199,9 @@ struct TxAllFiltersSheet: View {
 
             VStack(spacing: 0) {
                 AllFiltersRow(label: "Location", value: displayValue(locationKeys, options: locationOptions)) { drillInto(.location) }
-                AllFiltersRow(label: "Date",     value: computedDateValue)                                   { drillInto(.date) }
+                if showDateRow {
+                    AllFiltersRow(label: "Date", value: computedDateValue) { drillInto(.date) }
+                }
                 AllFiltersRow(label: "Cashflow", value: displayValue(cashflowKeys, options: cashflowOptions)) { drillInto(.cashflow) }
                 AllFiltersRow(label: "Category", value: displayValue(categoryKeys, options: categoryOptions)) { drillInto(.category) }
             }
@@ -216,9 +222,10 @@ struct TxAllFiltersSheet: View {
     }
 
     private func popBack() {
+        let h: CGFloat = showDateRow ? TxAllFiltersSheet.compactHeight : TxAllFiltersSheet.compactHeightNoDate
         withAnimation(.spring(response: 0.38, dampingFraction: 0.88)) {
             drillFilter = nil
-            onHeightChange?(TxAllFiltersSheet.compactHeight)
+            onHeightChange?(h)
         }
     }
 

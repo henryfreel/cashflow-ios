@@ -477,8 +477,11 @@ struct TxDateSheet: View {
     let onCommit:       (Date?, Date?) -> Void
     let onDone:         () -> Void
     /// When set, renders a back-button header (drill-down from All Filters).
-    var onBack:         (() -> Void)?        = nil
-    var onHeightChange: ((CGFloat) -> Void)? = nil
+    var onBack:         (() -> Void)?              = nil
+    var onHeightChange: ((CGFloat) -> Void)?       = nil
+    /// Called alongside onCommit with the selected preset (nil for custom dates).
+    /// Used by the P&L chip to translate the preset into period/year/quarter/month.
+    var onCommitPreset: ((DatePreset?) -> Void)?   = nil
 
     /// Height = sheet-top(24) + header(48) + VStack-gap(16) + 6 rows × 56 + bottom-pad(64)
     static let compactHeight: CGFloat = 488
@@ -488,18 +491,26 @@ struct TxDateSheet: View {
     @State private var customEnd:       Date?
     @State private var showCustomPicker: Bool = false
 
+    /// - Parameters:
+    ///   - initialPreset: When provided, pre-selects this preset regardless of the date range.
+    ///                    Used by the P&L period chip to reflect the current granularity.
+    ///   - onCommitPreset: Optional extra callback fired alongside onCommit, passing the
+    ///                     selected DatePreset (nil for custom date ranges).
     init(initialStart: Date?, initialEnd: Date?,
          onCommit: @escaping (Date?, Date?) -> Void,
          onDone: @escaping () -> Void,
          onBack: (() -> Void)? = nil,
-         onHeightChange: ((CGFloat) -> Void)? = nil) {
-        self.initialStart   = initialStart
-        self.initialEnd     = initialEnd
-        self.onCommit       = onCommit
-        self.onDone         = onDone
-        self.onBack         = onBack
-        self.onHeightChange = onHeightChange
-        let matched = DatePreset.allCases.first { $0.matches(start: initialStart, end: initialEnd) }
+         onHeightChange: ((CGFloat) -> Void)? = nil,
+         initialPreset: DatePreset? = nil,
+         onCommitPreset: ((DatePreset?) -> Void)? = nil) {
+        self.initialStart    = initialStart
+        self.initialEnd      = initialEnd
+        self.onCommit        = onCommit
+        self.onDone          = onDone
+        self.onBack          = onBack
+        self.onHeightChange  = onHeightChange
+        self.onCommitPreset  = onCommitPreset
+        let matched = initialPreset ?? DatePreset.allCases.first { $0.matches(start: initialStart, end: initialEnd) }
         _selectedPreset = State(initialValue: matched)
         if matched == nil {
             _customStart = State(initialValue: initialStart)
@@ -603,6 +614,7 @@ struct TxDateSheet: View {
 
                 Button {
                     let (s, e) = stagedRange
+                    onCommitPreset?(selectedPreset)
                     onCommit(s, e)
                     onDone()
                 } label: {
@@ -626,6 +638,7 @@ struct TxDateSheet: View {
 
                 Button {
                     let (s, e) = stagedRange
+                    onCommitPreset?(selectedPreset)
                     onCommit(s, e)
                     onDone()
                 } label: {

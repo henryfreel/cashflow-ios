@@ -360,13 +360,20 @@ struct PLYearBarChart: View {
         let netH   = CGFloat(abs(net) / s) * zeroY
         let isPos  = net >= 0
 
-        // While scrubbing, non-active bars switch to neutral grays.
-        let dimmed = isScrubbing && !isActiveScrub
-        let revLight: Color = dimmed ? .gray7  : .green7
-        let revDark:  Color = dimmed ? .gray5  : .green3
-        let expLight: Color = dimmed ? .gray7  : .red7
-        let expDark:  Color = dimmed ? .gray5  : .red2
-        let lineColor: Color = dimmed ? .gray5 : .gray1
+        // At rest: revenue/expense light portions are gray; the dark (net-profit)
+        // section within each bar is colored (green1 when profitable, red1 when not).
+        // Line indicator stays gray1 at all times.
+        // While scrubbing: hovered bar shows full color; all other bars go fully gray.
+        let showFullColor  = isScrubbing && isActiveScrub   // hovered during scrub
+        let showNetColor   = !isScrubbing                   // at rest
+
+        let revLight: Color = showFullColor ? .green7 : .gray7
+        let revDark:  Color = showFullColor ? .green1
+                            : (showNetColor && isPos  ? .green1 : .gray5)
+        let expLight: Color = showFullColor ? .red7   : .gray7
+        let expDark:  Color = showFullColor ? .red1
+                            : (showNetColor && !isPos ? .red1   : .gray5)
+        let lineColor: Color = .gray1
 
         let lineY: CGFloat = isPos
             ? zeroY - min(netH, revH)
@@ -410,9 +417,9 @@ struct PLYearBarChart: View {
         let prop   = CGFloat(max(0, min(1, proportion)))
         let catH   = revH * prop
 
-        let dimmed: Bool      = isScrubbing && !isActiveScrub
-        let lightColor: Color = dimmed ? .gray7 : .green7
-        let darkColor:  Color = dimmed ? .gray5 : .green3
+        let showColor: Bool   = isScrubbing && isActiveScrub
+        let lightColor: Color = showColor ? .green7 : .gray7
+        let darkColor:  Color = showColor ? .green1 : .gray5
 
         Group {
             if revH > 0 && m.hasData {
@@ -451,9 +458,9 @@ struct PLYearBarChart: View {
         let prop   = CGFloat(max(0, min(1, proportion)))
         let catH   = expH * prop
 
-        let dimmed: Bool      = isScrubbing && !isActiveScrub
-        let lightColor: Color = dimmed ? .gray7 : .red7
-        let darkColor:  Color = dimmed ? .gray5 : .red3
+        let showColor: Bool   = isScrubbing && isActiveScrub
+        let lightColor: Color = showColor ? .red7  : .gray7
+        let darkColor:  Color = showColor ? .red1  : .gray5
 
         Group {
             if expH > 0 && m.hasData {

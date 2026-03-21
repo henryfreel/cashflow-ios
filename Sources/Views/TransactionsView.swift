@@ -57,12 +57,12 @@ struct TransactionsView: View {
 
     // MARK: Filter options
 
-    private static let locationOptions: [TxFilterOption] = [
+    static let locationOptions: [TxFilterOption] = [
         TxFilterOption(id: "Hayes Valley",   label: "Hayes Valley"),
         TxFilterOption(id: "Bernal Heights", label: "Bernal Heights"),
         TxFilterOption(id: "The Mission",    label: "The Mission"),
     ]
-    private static let cashflowOptions: [TxFilterOption] = [
+    static let cashflowOptions: [TxFilterOption] = [
         TxFilterOption(id: "Revenue",  label: "Revenue"),
         TxFilterOption(id: "Expenses", label: "Expenses"),
     ]
@@ -72,7 +72,7 @@ struct TransactionsView: View {
     static let revOnline    = "rev:online"
     static let revCash      = "rev:cash"
 
-    private static let categoryOptions: [TxFilterOption] = {
+    static let categoryOptions: [TxFilterOption] = {
         // ── Expenses ─────────────────────────────────────────────────────────
         var opts: [TxFilterOption] = [.header("EXPENSES")]
         opts += ExpenseCategory.allCases.map { TxFilterOption(id: $0.rawValue, label: $0.rawValue) }

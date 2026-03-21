@@ -35,7 +35,9 @@ final class AppNavigationState {
     var txDatePickerHeight: CGFloat = TxDateSheet.compactHeight
     var txDatePickerInitialStart: Date? = nil
     var txDatePickerInitialEnd: Date? = nil
+    var txDatePickerInitialPreset: DatePreset? = nil
     var txDatePickerOnCommit: ((Date?, Date?) -> Void)? = nil
+    var txDatePickerOnCommitPreset: ((DatePreset?) -> Void)? = nil
     var txDatePickerOnDone: (() -> Void)? = nil
 
     /// All-filters summary sheet
@@ -48,12 +50,12 @@ final class AppNavigationState {
 // MARK: -
 
 enum Tab {
-    case home, transactions, analytics, more
+    case home, transactions, banking, staff, analytics, more
 }
 
 struct ContentView: View {
     @State private var showBalance = false
-    @State private var showProfitLossDetail = false
+    @State private var showProfitLossDetail = true
     @State private var navState = AppNavigationState()
     @State private var txStore  = TransactionStore()
 
@@ -96,7 +98,9 @@ struct ContentView: View {
                         initialEnd:     navState.txDatePickerInitialEnd,
                         onCommit:       onCommit,
                         onDone:         onDone,
-                        onHeightChange: { navState.txDatePickerHeight = $0 }
+                        onHeightChange: { navState.txDatePickerHeight = $0 },
+                        initialPreset:  navState.txDatePickerInitialPreset,
+                        onCommitPreset: navState.txDatePickerOnCommitPreset
                     )
                 }
             }
@@ -261,16 +265,20 @@ private struct BottomTabBar: View {
             HStack(spacing: 0) {
                 TabItem(icon: "TabHome", label: "Home",
                         isSelected: selectedTab == .home) { onTap(.home) }
-                TabItem(icon: "TabTransfer", label: "Transactions",
-                        isSelected: selectedTab == .transactions) { onTap(.transactions) }
-                TabItem(icon: "TabAnalytics", label: "Reports",
+                TabItem(icon: "TabBanking", label: "Banking",
                         isSelected: false) {}
                     .allowsHitTesting(false)
+                TabItem(icon: "TabStaff", label: "Staff",
+                        isSelected: false) {}
+                    .allowsHitTesting(false)
+                TabItem(icon: "TabTransfer", label: "Transactions",
+                        isSelected: selectedTab == .transactions) { onTap(.transactions) }
                 TabItem(icon: "TabMore", label: "More",
                         isSelected: false) {}
                     .allowsHitTesting(false)
             }
             .padding(.top, 13)
+            .padding(.horizontal, 8)
         }
         .background(Color.white.ignoresSafeArea(edges: .bottom))
     }
@@ -304,7 +312,7 @@ private struct TabItem: View {
             }
             .foregroundStyle(color)
             .animation(nil, value: isSelected)
-            .frame(width: 94, height: 48)
+            .frame(maxWidth: .infinity, minHeight: 48)
         }
         .buttonStyle(.plain)
     }
