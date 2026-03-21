@@ -427,6 +427,11 @@ struct TransactionsView: View {
                         withAnimation { proxy.scrollTo("txListTop", anchor: .top) }
                     }
                 }
+                .onChange(of: searchText) { _, text in
+                    if !text.isEmpty {
+                        proxy.scrollTo("txListTop", anchor: .top)
+                    }
+                }
             }
         }
         .overlay {
