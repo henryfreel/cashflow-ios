@@ -197,6 +197,14 @@ struct TxFilterBar: View {
                             withAnimation(.easeInOut(duration: 0.25)) { isSearching = true }
                         }
 
+                    // ── Date chip — first filter chip; collapses to zero width when
+                    // the search bar expands so the morph chip stays flush to the right.
+                    TxChip(label: "Date", value: periodLabel.isEmpty ? nil : periodLabel, onTap: onTapDate)
+                        .frame(width: isSearching ? 0 : nil)
+                        .clipped()
+                        .opacity(isSearching ? 0 : 1)
+                        .allowsHitTesting(!isSearching)
+
                     // ── Morph chip: Location filter ↔ All Filters button ──
                     // Same container, width + content both animate with isSearching.
                     // Dismiss keyboard before opening the all-filters sheet so it
@@ -217,9 +225,6 @@ struct TxFilterBar: View {
                     )
 
                     // ── Remaining chips — fade out and are pushed off-screen when searching ──
-                    TxChip(label: "Date",     value: periodLabel.isEmpty ? nil : periodLabel, onTap: onTapDate)
-                        .opacity(isSearching ? 0 : 1)
-                        .allowsHitTesting(!isSearching)
                     TxChip(label: "Cashflow", value: cashflow == "All" || cashflow.isEmpty ? nil : cashflow, onTap: onTapCashflow)
                         .opacity(isSearching ? 0 : 1)
                         .allowsHitTesting(!isSearching)
@@ -583,27 +588,38 @@ struct TxChip: View {
 /// negative values use red7 background + red3 text with a down arrow.
 /// Used on the P&L net profit hero row and anywhere else a compact YoY % is needed.
 struct YoyBadge: View {
-    let pct: Double
+    /// Pass nil when no prior-year data is available — renders an N/A state.
+    let pct: Double?
 
-    private var isPositive: Bool { pct >= 0 }
+    private var isNA:       Bool  { pct == nil }
+    private var isPositive: Bool  { (pct ?? 0) >= 0 }
+
+    private var arrowImage: String {
+        isNA || isPositive ? "iconTinyArrowUp" : "iconTinyArrowDown"
+    }
+    private var fgColor: Color { isNA ? .gray4 : (isPositive ? .green1 : .red1) }
+    private var bgColor: Color { isNA ? .gray6 : (isPositive ? .green7 : .red7) }
+    private var label:  String {
+        isNA ? "N/A" : String(format: "%.2f%%", abs(pct!))
+    }
 
     var body: some View {
         HStack(spacing: 4) {
-            Image(isPositive ? "iconTinyArrowUp" : "iconTinyArrowDown")
+            Image(arrowImage)
                 .resizable()
                 .renderingMode(.template)
                 .scaledToFit()
                 .frame(width: 8, height: 6)
-                .foregroundStyle(isPositive ? Color.green1 : Color.red1)
+                .foregroundStyle(fgColor)
 
-            Text(String(format: "%.2f%%", abs(pct)))
+            Text(label)
                 .font(.paragraphSemibold20)
-                .foregroundStyle(isPositive ? Color.green1 : Color.red1)
+                .foregroundStyle(fgColor)
                 .fixedSize()
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
-        .background(isPositive ? Color.green7 : Color.red7)
+        .background(bgColor)
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
@@ -612,7 +628,7 @@ struct YoyBadge: View {
 
 /// Shared filter chips bar used on the Profit & Loss, Revenue, and Expenses detail pages.
 /// Period chip: left/right arrows navigate periods; tapping the label opens the date sheet.
-/// "vs. Prior year" chip and all-filters icon button share the same TxChip styling.
+/// "vs. Prior year" chip and location icon button share the same TxChip styling.
 struct PLFilterChipsBar: View {
     let periodLabel: String
     let canGoBack: Bool
@@ -620,13 +636,14 @@ struct PLFilterChipsBar: View {
     let onBack: () -> Void
     let onForward: () -> Void
     var onTapPeriod: (() -> Void)? = nil
-    var onTapAllFilters: (() -> Void)? = nil
+    var onTapLocation: (() -> Void)? = nil
+    var locationFilterCount: Int = 0
 
     var body: some View {
         HStack(spacing: 8) {
             periodChip
             TxChip(label: "vs.", value: "Prior year", horizontalPadding: 10)
-            allFiltersButton
+            locationButton
         }
     }
 
@@ -672,21 +689,33 @@ struct PLFilterChipsBar: View {
         }
     }
 
-    private var allFiltersButton: some View {
-        Button(action: { onTapAllFilters?() }) {
-            Image("TxFilterIcon")
-                .resizable()
-                .renderingMode(.template)
-                .scaledToFit()
-                .foregroundStyle(Color.gray1)
-                .frame(width: 18, height: 12)
-                .frame(width: 24, height: 24)
-                .padding(8)
-                .frame(width: 40, height: 40)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 6)
-                        .strokeBorder(Color.gray1.opacity(0.15), lineWidth: 1)
+    private var locationButton: some View {
+        Button(action: { onTapLocation?() }) {
+            HStack(spacing: 4) {
+                Image("icon24LocationPin")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(Color.gray1)
+                    .frame(width: 20, height: 20)
+                    .frame(width: 24, height: 24)
+                if locationFilterCount > 0 {
+                    Text("\(locationFilterCount)")
+                        .font(.paragraphSemibold30)
+                        .foregroundStyle(Color.blue3)
+                        .transition(.scale(scale: 0.7).combined(with: .opacity))
                 }
+            }
+            .padding(.leading, 8)
+            .padding(.trailing, locationFilterCount > 0 ? 10 : 8)
+            .frame(width: locationFilterCount > 0 ? 54 : 40, height: 40)
+            .overlay {
+                RoundedRectangle(cornerRadius: 6)
+                    .strokeBorder(Color.gray1.opacity(0.15), lineWidth: 1)
+            }
+            .clipped()
+            .contentShape(Rectangle())
+            .animation(.easeInOut(duration: 0.15), value: locationFilterCount)
         }
         .buttonStyle(.plain)
     }

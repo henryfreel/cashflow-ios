@@ -45,6 +45,16 @@ final class AppNavigationState {
     var txAllFiltersSheetContent: AnyView = AnyView(EmptyView())
     var txAllFiltersSheetHeight: CGFloat = TxAllFiltersSheet.compactHeight
 
+    /// Category picker sheet (Revenue / Expenses detail pages)
+    var categoryPickerSheetPresented: Bool = false
+    var categoryPickerSheetContent: AnyView = AnyView(EmptyView())
+    var categoryPickerSheetHeight: CGFloat = PLCategoryPickerSheet.height(rowCount: 4)
+
+    // Global date + location — written by P&L pages, always applied to Transactions.
+    // Defaults to the app's current year (2024) so Transactions always opens with a date.
+    var globalStartDate: Date? = Calendar.current.date(from: DateComponents(year: 2024, month: 1, day: 1))
+    var globalEndDate:   Date? = Calendar.current.date(from: DateComponents(year: 2024, month: 12, day: 15))
+    var globalLocations: Set<String> = []
 }
 
 // MARK: -
@@ -110,6 +120,13 @@ struct ContentView: View {
                 compactHeight: navState.txAllFiltersSheetHeight
             ) {
                 navState.txAllFiltersSheetContent
+            }
+            // Category picker sheet (Revenue / Expenses detail pages)
+            .customBottomSheet(
+                isPresented:   $navState.categoryPickerSheetPresented,
+                compactHeight: navState.categoryPickerSheetHeight
+            ) {
+                navState.categoryPickerSheetContent
             }
     }
 
@@ -249,9 +266,15 @@ struct TopNavigationBar: View {
 
 // MARK: - Bottom Tab Bar
 
-// Figma frame: 4 tabs × 94pt wide, centered on 390pt screen.
-// Top border: 1px gray5 (matches nav bar bottom separator). Top padding: 13pt. Tab height: 48pt.
-// Active color: #006AFF. Inactive: gray1.
+// Layout spec (total height = 102pt from screen bottom to tab bar top):
+//   Content block: icon 24pt + gap 4pt + label 12pt = 40pt.
+//   Padding: 12pt top, 16pt bottom → VStack = 68pt above safe area.
+//   Background extends ~34pt into system safe area → 68 + 34 = 102pt total visual height.
+//   Top border: 1pt gray5 Rectangle inside the frame.
+//   Tab items are content-sized (no equal-width stretching); Spacers distribute
+//   remaining horizontal space so labels never truncate.
+//   Active pill: height 56pt (8pt above + 40pt content + 8pt below), r=12, gray6.
+//   Active pill width: label-width + 16pt (8pt each side), minimum 64pt.
 private struct BottomTabBar: View {
     let selectedTab: Tab
     let onTap: (Tab) -> Void
@@ -263,23 +286,30 @@ private struct BottomTabBar: View {
                 .frame(height: 1)
 
             HStack(spacing: 0) {
-                TabItem(icon: "TabHome", label: "Home",
-                        isSelected: selectedTab == .home) { onTap(.home) }
+                Spacer(minLength: 0)
+                TabItem(icon: "TabHome", label: "Home", isSelected: selectedTab == .home) { onTap(.home) }
+                Spacer(minLength: 0)
                 TabItem(icon: "TabBanking", label: "Banking",
                         isSelected: false) {}
                     .allowsHitTesting(false)
+                Spacer(minLength: 0)
                 TabItem(icon: "TabStaff", label: "Staff",
                         isSelected: false) {}
                     .allowsHitTesting(false)
+                Spacer(minLength: 0)
                 TabItem(icon: "TabTransfer", label: "Transactions",
                         isSelected: selectedTab == .transactions) { onTap(.transactions) }
+                Spacer(minLength: 0)
                 TabItem(icon: "TabMore", label: "More",
                         isSelected: false) {}
                     .allowsHitTesting(false)
+                Spacer(minLength: 0)
             }
-            .padding(.top, 13)
-            .padding(.horizontal, 8)
+            .padding(.top, 12)
+            .padding(.bottom, 16)
+            .padding(.horizontal, 16)
         }
+        .frame(maxWidth: .infinity)
         .background(Color.white.ignoresSafeArea(edges: .bottom))
     }
 }
@@ -290,16 +320,9 @@ private struct TabItem: View {
     let isSelected: Bool
     let action: () -> Void
 
-    // Active: Emphasis/Fill #006AFF. Inactive: Fill/10 black at 90% opacity.
-    private var color: Color {
-        isSelected
-            ? Color.blue3
-            : Color.gray1
-    }
-
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 8) {
+            VStack(spacing: 4) {
                 Image(icon)
                     .resizable()
                     .renderingMode(.template)
@@ -307,12 +330,27 @@ private struct TabItem: View {
                     .frame(width: 24, height: 24)
 
                 Text(label)
-                    .font(.paragraphSemibold10)
-                    .frame(height: 16)
+                    .font(.paragraphSemibold9)
+                    .fixedSize()
+                    .frame(height: 12)
             }
-            .foregroundStyle(color)
-            .animation(nil, value: isSelected)
-            .frame(maxWidth: .infinity, minHeight: 48)
+            .foregroundStyle(Color.gray1)
+            // 8pt padding each side grows the pill to label-width + 16pt.
+            // frame(minWidth: 64) enforces a minimum pill width for short labels.
+            // No frame(maxWidth: .infinity) — each item hugs its content so labels
+            // are never truncated; Spacers in BottomTabBar distribute leftover space.
+            .padding(.horizontal, 8)
+            .frame(minWidth: 64)
+            .background {
+                if isSelected {
+                    // Content block = 40pt. Pill = 56pt centered in 40pt → extends 8pt
+                    // above and 8pt below with no manual offset required.
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.gray6)
+                        .frame(height: 56)
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: isSelected)
         }
         .buttonStyle(.plain)
     }

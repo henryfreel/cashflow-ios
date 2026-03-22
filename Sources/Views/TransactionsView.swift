@@ -29,12 +29,13 @@ struct TransactionsView: View {
     // MARK: Init
 
     init(periodLabel: String, cashflow: String, category: String?,
-         location: String? = nil, transactions: [Transaction] = []) {
+         location: String? = nil) {
         self.periodLabel = periodLabel
         self.cashflow    = cashflow
         self.category    = category
         self.location    = location
 
+        // Only populate filters when arriving via "View All Transactions" (periodLabel set).
         if let range = Self.dateRange(forPeriodLabel: periodLabel) {
             _selectedStartDate = State(initialValue: range.start)
             _selectedEndDate   = State(initialValue: range.end)
@@ -333,9 +334,9 @@ struct TransactionsView: View {
                 onClearAll: {
                     selectedStartDate  = nil
                     selectedEndDate    = nil
+                    selectedLocations  = []
                     selectedCashflows  = []
                     selectedCategories = []
-                    selectedLocations  = []
                     visibleCount       = 15
                     navState.txAllFiltersSheetPresented = false
                 },
@@ -390,9 +391,9 @@ struct TransactionsView: View {
                 onClear: {
                     selectedStartDate  = nil
                     selectedEndDate    = nil
+                    selectedLocations  = []
                     selectedCashflows  = []
                     selectedCategories = []
-                    selectedLocations  = []
                     visibleCount       = 15
                 },
                 onTapLocation:   { presentFilterSheet(.location) },

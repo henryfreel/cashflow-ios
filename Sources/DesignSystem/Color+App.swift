@@ -75,7 +75,7 @@ extension Color {
 /// Swatch reference:
 ///   red1  #BF0120   darkest
 ///   red2  #99001A   dark red
-///   red3  #D2001D   primary fill / notification badges
+///   red3  #CC0023   primary fill / notification badges
 ///   red4  #E0667B   medium
 ///   red5  #FDA2B2   light
 ///   red6  #FFCCD5   lighter
@@ -83,11 +83,28 @@ extension Color {
 extension Color {
     static let red1 = Color(red: 191/255, green: 1/255, blue: 32/255)      // #BF0120
     static let red2 = Color(red: 153/255, green: 0/255, blue: 26/255)    // #99001a
-    static let red3 = Color(red: 210/255, green: 0/255, blue: 29/255)   // #d2001d
+    static let red3 = Color(red: 204/255, green: 0/255, blue: 35/255)   // #CC0023
     static let red4 = Color(red: 224/255, green: 102/255, blue: 123/255) // #e0667b
     static let red5 = Color(red: 253/255, green: 162/255, blue: 178/255) // #fda2b2
     static let red6 = Color(red: 255/255, green: 204/255, blue: 213/255)  // #ffccd5
     static let red7 = Color(red: 255/255, green: 229/255, blue: 234/255)  // #FFE5EA
+}
+
+// MARK: - Bar chart colour palette
+//
+// Single source of truth shared by PLYearBarChart (all three chart modes) and
+// ProfitLossDetailView (indicator dots).  Change a value here and every consumer
+// updates automatically.
+//
+//   barRevPrimary   — darker green: category segment, net-profit overlay, indicator dot
+//   barRevSecondary — lighter green: background tint on the non-category portion
+//   barExpPrimary   — darker red:  category segment, net-profit overlay, indicator dot
+//   barExpSecondary — lighter red:  background tint on the non-category portion
+extension Color {
+    static let barRevPrimary:   Color = .green3  // #00B23B  darker — overlay / category
+    static let barRevSecondary: Color = .green7  // #E6FFEA  lighter — background tint
+    static let barExpPrimary:   Color = .red3    // #CC0023  darker — overlay / category
+    static let barExpSecondary: Color = .red7    // #FFE5EA  lighter — background tint
 }
 
 // MARK: - Device Corner Radius

@@ -44,6 +44,7 @@ extension Font {
     static let paragraphSemibold30 = Font.custom(AppFont.Text.semiBold, size: 16) // Paragraph/Semibold 30
     static let paragraphSemibold20 = Font.custom(AppFont.Text.semiBold, size: 14) // Paragraph/Semibold 20
     static let paragraphSemibold10 = Font.custom(AppFont.Text.semiBold, size: 12) // Paragraph/Semibold 10
+    static let paragraphSemibold9  = Font.custom(AppFont.Text.semiBold, size: 10) // 10pt semibold — tab bar labels
     static let paragraphMedium30   = Font.custom(AppFont.Text.medium,   size: 16) // Paragraph/Medium 30
     static let paragraph30         = Font.custom(AppFont.Text.regular,  size: 16) // Paragraph/30
     static let paragraph20         = Font.custom(AppFont.Text.regular,  size: 14) // Paragraph/20

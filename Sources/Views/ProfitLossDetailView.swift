@@ -48,6 +48,7 @@ struct ProfitLossDetailView: View {
     // Selected segment: "Year", "Quarter", or "Month".
     @State private var selectedPeriod: String
     /// Tracks which donut segment is selected on Revenue / Expenses pages.
+    @State private var selectedDonutIndex: Int = 0
     // Swipe navigates between full periods — year, quarter, or month.
     // Prototype context: Dec 15, 2024 — default to current year/quarter/month.
     @State private var selectedYear:    Int
@@ -90,6 +91,8 @@ struct ProfitLossDetailView: View {
     @State private var metricsNavCounter: Int = 0
     // Rubber-band offset applied only to the sliding metrics rows.
     @State private var bounceOffset: CGFloat = 0
+    // True while a confirmed horizontal swipe is in progress; suppresses row taps.
+    @State private var isDragging: Bool = false
     // Scrubbing: which bar index is currently being hovered (nil = not scrubbing).
     @State private var scrubIndex: Int? = nil
     // Direction of last scrub movement (true = moved to higher index / right).
@@ -115,6 +118,55 @@ struct ProfitLossDetailView: View {
     private var totalRevenuePrev:  Double { monthsForPrevYear.reduce(0) { $0 + $1.revenue } }
     private var totalExpensesPrev: Double { monthsForPrevYear.reduce(0) { $0 + $1.expenses } }
     private var netProfitPrev:    Double { totalRevenuePrev - totalExpensesPrev }
+
+    // MARK: Category breakdowns for Revenue / Expenses detail pages
+
+    private var revenueDonutSegments: [DonutChartView.Segment] {
+        let b = RevenueBreakdown(total: totalRevenue)
+        return [
+            .init(id: 0, name: RevenueCategory.squareCard.rawValue, value: b.squareCard),
+            .init(id: 1, name: RevenueCategory.online.rawValue,     value: b.online),
+            .init(id: 2, name: RevenueCategory.cash.rawValue,       value: b.cash),
+            .init(id: 3, name: RevenueCategory.giftCard.rawValue,   value: b.giftCard),
+        ]
+    }
+
+    private var expenseDonutSegments: [DonutChartView.Segment] {
+        let b = ExpenseBreakdown(total: totalExpenses)
+        return [
+            .init(id: 0, name: ExpenseCategory.cogs.rawValue,         value: b.cogs),
+            .init(id: 1, name: ExpenseCategory.laborPayroll.rawValue,  value: b.labor),
+            .init(id: 2, name: ExpenseCategory.rentUtilities.rawValue, value: b.rent + b.utilities),
+            .init(id: 3, name: ExpenseCategory.marketing.rawValue,     value: b.marketing),
+        ]
+    }
+
+    /// Fixed-proportion share of the selected segment within the annual total.
+    /// Because proportions are constant, this equals the category's share for any sub-period.
+    private var selectedCategoryProportion: Double {
+        guard !showRevenueExpensesCard else { return 0 }
+        let segs      = pageTitle == "Revenue" ? revenueDonutSegments : expenseDonutSegments
+        let annual    = pageTitle == "Revenue" ? totalRevenue         : totalExpenses
+        guard selectedDonutIndex < segs.count, annual > 0 else { return 0 }
+        return segs[selectedDonutIndex].value / annual
+    }
+
+    /// Category value for the current period (scales with the period total).
+    private var categoryPeriodValue: Double {
+        (pageTitle == "Revenue" ? periodRevenue : periodExpenses) * selectedCategoryProportion
+    }
+
+    /// Category value for the bar currently under the user's finger while scrubbing.
+    private var categoryScrubValue: Double {
+        (pageTitle == "Revenue" ? scrubRevenue : scrubExpenses) * selectedCategoryProportion
+    }
+
+    /// Display name of the currently selected category segment.
+    private var selectedCategoryName: String {
+        let segs = pageTitle == "Revenue" ? revenueDonutSegments : expenseDonutSegments
+        guard selectedDonutIndex < segs.count else { return "" }
+        return segs[selectedDonutIndex].name
+    }
 
     // MARK: Label tables
 
@@ -476,10 +528,17 @@ struct ProfitLossDetailView: View {
                     if bounceOffset != 0 { bounceOffset = 0 }
                     return
                 }
+                // Confirmed horizontal drag — suppress any concurrent row taps.
+                isDragging = true
                 let atBoundary = (h > 0 && !canGoBack) || (h < 0 && !canGoForward)
                 bounceOffset = atBoundary ? h * 0.25 : h
             }
             .onEnded { value in
+                // Always reset on the next run loop so any button action that fires
+                // synchronously in the same gesture cycle sees isDragging == true
+                // and bails out, while future taps work normally.
+                defer { DispatchQueue.main.async { self.isDragging = false } }
+
                 guard value.startLocation.x > 20 else { return }
                 guard scrubIndex == nil else { return }
                 let h = value.translation.width
@@ -502,7 +561,7 @@ struct ProfitLossDetailView: View {
 
     // MARK: Body
 
-    /// Large net profit display shown at the top of the P&L page only.
+    /// Large hero display used on the P&L page for net profit.
     /// Shows the period-scoped value (responds to bar-chart scrubbing) and a
     /// YoY % badge — no status-dot indicator.
     private var netProfitHeroRow: some View {
@@ -531,25 +590,173 @@ struct ProfitLossDetailView: View {
         }
     }
 
+    /// Hero display for Revenue and Expenses detail pages — same layout and font
+    /// as `netProfitHeroRow` but driven by the page-specific metric.
+    private var singleMetricHeroRow: some View {
+        let isScrubbing = scrubIndex != nil
+        let scrubBarHasData = scrubIndex.map { $0 < currentEntries.count && !currentEntries[$0].isFuture } ?? false
+        let isFutureScrub   = isScrubbing && !scrubBarHasData
+        let hasPrev = isScrubbing && !isFutureScrub
+            ? (scrubIndex ?? 0) < prevYearEntries.count && prevYearEntries[scrubIndex ?? 0].hasData
+            : (!isScrubbing && selectedYear > AppFinancials.minYear)
+
+        let isRevenue = pageTitle == "Revenue"
+        let title     = isRevenue ? "Total revenue" : "Total expenses"
+        let rawValue  = isRevenue
+            ? (isScrubbing ? scrubRevenue  : periodRevenue)
+            : (isScrubbing ? scrubExpenses : periodExpenses)
+        let rawYoy    = isRevenue
+            ? (isScrubbing ? scrubRevYoyPct : periodRevYoyPct)
+            : (isScrubbing ? scrubExpYoyPct : periodExpYoyPct)
+        let yoyPct: Double? = (hasPrev && !isFutureScrub) ? (isRevenue ? rawYoy : -rawYoy) : nil
+        let prefix = isRevenue ? "" : "-"
+
+        return HStack(alignment: .center, spacing: 0) {
+            // Indicator dot — same pattern as metricRow. Slides in from the left when
+            // scrubbing begins; dot sits at top + 2pt to align with the title label.
+            ZStack(alignment: .topLeading) {
+                Circle()
+                    .fill(isRevenue ? Color.barRevPrimary : Color.barExpPrimary)
+                    .frame(width: 12, height: 12)
+                    .padding(.top, 2)
+            }
+            .frame(maxHeight: .infinity, alignment: .topLeading)
+            .frame(width: isScrubbing ? 12 : 0)
+            .clipped()
+            .padding(.trailing, isScrubbing ? 8 : 0)
+            .opacity(isScrubbing ? 1 : 0)
+            .animation(.spring(response: 0.25, dampingFraction: 0.85), value: isScrubbing)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.paragraph20)
+                    .foregroundStyle(Color.gray3)
+
+                HStack(spacing: 0) {
+                    if !prefix.isEmpty {
+                        Text(prefix)
+                            .font(.display10)
+                            .foregroundStyle(Color.gray1)
+                    }
+                    SlotMachineText(
+                        text: fmt(rawValue),
+                        value: rawValue,
+                        font: .display10,
+                        color: Color.gray1,
+                        animated: isScrubbing
+                    )
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            YoyBadge(pct: yoyPct)
+                .padding(.leading, 8)
+        }
+    }
+
+    /// Compact category row shown 16pt below the hero on Revenue / Expenses detail pages.
+    /// Uses the same metricRow style as the P&L summary rows. The category value and
+    /// YoY badge update live while the user scrubs the bar chart. Because category
+    /// proportions are fixed, the YoY% always equals the parent metric's YoY%.
+    private var categoryRowForDetailPage: some View {
+        let isScrubbing     = scrubIndex != nil
+        let scrubBarHasData = scrubIndex.map { $0 < currentEntries.count && !currentEntries[$0].isFuture } ?? false
+        let isFutureScrub   = isScrubbing && !scrubBarHasData
+        let hasPrev = isScrubbing && !isFutureScrub
+            ? (scrubIndex ?? 0) < prevYearEntries.count && prevYearEntries[scrubIndex ?? 0].hasData
+            : (!isScrubbing && selectedYear > AppFinancials.minYear)
+
+        let isRevenue = pageTitle == "Revenue"
+        let catValue  = isScrubbing ? categoryScrubValue : categoryPeriodValue
+        let rawYoy    = isRevenue
+            ? (isScrubbing ? scrubRevYoyPct : periodRevYoyPct)
+            : (isScrubbing ? scrubExpYoyPct : periodExpYoyPct)
+        let yoyPct: Double? = (hasPrev && !isFutureScrub) ? (isRevenue ? rawYoy : -rawYoy) : nil
+
+        return metricRow(
+            indicator:      isRevenue ? .revenue : .expenses,
+            title:          selectedCategoryName,
+            yoyPct:         yoyPct,
+            value:          fmt(catValue),
+            valuePrefix:    isRevenue ? "" : "-",
+            animateValue:   isScrubbing ? catValue : nil,
+            onTap:          { presentCategoryPicker() },
+            indicatorVisible: isScrubbing
+        )
+    }
+
+    /// Opens the category picker bottom sheet above the tab bar.
+    private func presentCategoryPicker() {
+        guard let navState else { return }
+        let isRevenue = pageTitle == "Revenue"
+        let title     = isRevenue ? "Revenue Category" : "Expense Category"
+        let options   = (isRevenue ? revenueDonutSegments : expenseDonutSegments)
+                            .map { (id: $0.id, label: $0.name) }
+
+        let sheet = PLCategoryPickerSheet(
+            title:        title,
+            options:      options,
+            initialIndex: selectedDonutIndex,
+            onSelect: { [self] idx in selectedDonutIndex = idx },
+            onDone:   { navState.categoryPickerSheetPresented = false }
+        )
+
+        navState.categoryPickerSheetHeight    = PLCategoryPickerSheet.height(rowCount: options.count)
+        navState.categoryPickerSheetContent   = AnyView(sheet)
+        navState.categoryPickerSheetPresented = true
+    }
+
+    /// Routes to the correct animated section for the current page context.
+    /// P&L page shows the compact revenue + expenses rows; Revenue/Expenses pages
+    /// show their respective metric in the same large hero style as the net profit row,
+    /// followed by the first-category breakdown row 16pt below.
+    @ViewBuilder
+    private var animatedMetricsSection: some View {
+        if showRevenueExpensesCard {
+            metricsSection
+        } else {
+            Group {
+                if !hasDataForPeriod {
+                    metricsNoDataView
+                        // Match the height of hero + category row so the chart below
+                        // doesn't shift when navigating to an empty period.
+                        .frame(height: normalMetricsHeight > 0 ? normalMetricsHeight : nil,
+                               alignment: .center)
+                } else {
+                    VStack(spacing: 0) {
+                        singleMetricHeroRow
+                        categoryRowForDetailPage
+                            .padding(.top, 16)
+                    }
+                }
+            }
+        }
+    }
+
     private var scrollContent: some View {
         VStack(spacing: 0) {
-            if showRevenueExpensesCard {
-                netProfitHeroRow
-                    .padding(.bottom, 32)
-            }
-
             VStack(spacing: 0) {
-                metricsSection
-                    .id(metricsAnimationKey)
-                    .transition(metricsTransition)
-                    .animation(.easeOut(duration: 0.25), value: metricsAnimationKey)
-                    .offset(x: bounceOffset)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { h in
-                        if h > 0 {
-                            metricsHeight = h
-                            if hasDataForPeriod { normalMetricsHeight = h }
-                        }
+                // Net profit hero and the metrics rows are bundled into a single
+                // identity container so they ALL slide together when navigating periods.
+                VStack(spacing: 0) {
+                    if showRevenueExpensesCard && hasDataForPeriod {
+                        netProfitHeroRow
+                            .padding(.bottom, 16)
                     }
+                    animatedMetricsSection
+                }
+                .id(metricsAnimationKey)
+                .transition(metricsTransition)
+                .animation(.easeOut(duration: 0.25), value: metricsAnimationKey)
+                .offset(x: bounceOffset)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { h in
+                    if h > 0 {
+                        metricsHeight = h
+                        if hasDataForPeriod { normalMetricsHeight = h }
+                    }
+                }
 
                 chartSection
                     .padding(.top, 37)
@@ -558,7 +765,7 @@ struct ProfitLossDetailView: View {
             .simultaneousGesture(swipeGesture)
 
             viewAllButton
-                .padding(.top, 24)
+                .padding(.top, 40)
         }
     }
 
@@ -569,6 +776,7 @@ struct ProfitLossDetailView: View {
                     .padding(.horizontal, 16)
             }
         }
+        .scrollDisabled(true)
         .contentMargins(.bottom, 94, for: .scrollContent)
         .navigationDestination(isPresented: $showRevenueDetail) {
             ProfitLossDetailView(
@@ -592,6 +800,15 @@ struct ProfitLossDetailView: View {
         }
         .background(Color.white)
         .background(NavigationBackGestureEnabler())
+        // Keep global date + location in sync with this page's current period/location.
+        .onAppear { updateGlobalFilters() }
+        .onChange(of: selectedYear)      { updateGlobalFilters() }
+        .onChange(of: selectedPeriod)    { updateGlobalFilters() }
+        .onChange(of: selectedQuarter)   { updateGlobalFilters() }
+        .onChange(of: selectedMonth)     { updateGlobalFilters() }
+        .onChange(of: plSelectedStartDate) { updateGlobalFilters() }
+        .onChange(of: plSelectedEndDate)   { updateGlobalFilters() }
+        .onChange(of: plSelectedLocations) { updateGlobalFilters() }
         .safeAreaInset(edge: .top, spacing: 0) {
             VStack(spacing: 0) {
                 SecondaryNavBar(
@@ -612,13 +829,14 @@ struct ProfitLossDetailView: View {
     /// Shared PLFilterChipsBar wired to this page's navigation and filter state.
     private var plFilterChipsRow: some View {
         PLFilterChipsBar(
-            periodLabel:    periodChipLabel,
-            canGoBack:      canGoBack,
-            canGoForward:   canGoForward,
-            onBack:         { navigateBack() },
-            onForward:      { navigateForward() },
-            onTapPeriod:    { presentDatePicker() },
-            onTapAllFilters: { presentAllFiltersSheet() }
+            periodLabel:       periodChipLabel,
+            canGoBack:         canGoBack,
+            canGoForward:      canGoForward,
+            onBack:            { navigateBack() },
+            onForward:         { navigateForward() },
+            onTapPeriod:       { presentDatePicker() },
+            onTapLocation:      { presentLocationSheet() },
+            locationFilterCount: plSelectedLocations.count
         )
     }
 
@@ -689,44 +907,62 @@ struct ProfitLossDetailView: View {
         }
     }
 
-    /// Opens the same TxAllFiltersSheet used on the transactions page, relayed via navState
-    /// so ContentView presents it above the tab bar.
-    private func presentAllFiltersSheet() {
+    /// Writes the current period + location to AppNavigationState globals so that
+    /// TransactionsView always reflects whatever date/location is active here.
+    private func updateGlobalFilters() {
         guard let navState else { return }
+        let cal      = Calendar.current
+        let appToday = TransactionsView.appToday
 
-        let heightFn: (TxActiveFilter) -> CGFloat = plFilterSheetHeight
-        let commitFn: (TxActiveFilter, Set<String>) -> Void = plCommitFilter
-
-        let clearFn: () -> Void = { [self] in
-            plSelectedStartDate  = nil
-            plSelectedEndDate    = nil
-            plSelectedCashflows  = []
-            plSelectedCategories = []
-            plSelectedLocations  = []
-            navState.txAllFiltersSheetPresented = false
+        if let start = plSelectedStartDate {
+            // Custom date range selected via the date picker.
+            navState.globalStartDate = start
+            navState.globalEndDate   = plSelectedEndDate
+        } else {
+            // Standard period — compute the date range from year/quarter/month.
+            switch selectedPeriod {
+            case "Month":
+                let start = cal.date(from: DateComponents(year: selectedYear, month: selectedMonth, day: 1))!
+                let nextMonthStart = selectedMonth < 12
+                    ? cal.date(from: DateComponents(year: selectedYear, month: selectedMonth + 1, day: 1))!
+                    : cal.date(from: DateComponents(year: selectedYear + 1, month: 1, day: 1))!
+                let end = cal.date(byAdding: .day, value: -1, to: nextMonthStart)!
+                navState.globalStartDate = start
+                navState.globalEndDate   = min(end, appToday)
+            case "Quarter":
+                let startMonth = (selectedQuarter - 1) * 3 + 1
+                let endMonth   = startMonth + 2
+                let start      = cal.date(from: DateComponents(year: selectedYear, month: startMonth, day: 1))!
+                let daysInEnd  = cal.range(of: .day, in: .month,
+                    for: cal.date(from: DateComponents(year: selectedYear, month: endMonth, day: 1))!)!.count
+                let end        = cal.date(from: DateComponents(year: selectedYear, month: endMonth, day: daysInEnd))!
+                navState.globalStartDate = start
+                navState.globalEndDate   = min(end, appToday)
+            default: // Year
+                let start = cal.date(from: DateComponents(year: selectedYear, month: 1,  day: 1))!
+                let end   = cal.date(from: DateComponents(year: selectedYear, month: 12, day: 31))!
+                navState.globalStartDate = start
+                navState.globalEndDate   = min(end, appToday)
+            }
         }
+        navState.globalLocations = plSelectedLocations
+    }
 
-        var sheet = TxAllFiltersSheet(
-            locationOptions:     TransactionsView.locationOptions,
-            cashflowOptions:     TransactionsView.cashflowOptions,
-            categoryOptions:     TransactionsView.categoryOptions,
-            filterSheetHeight:   heightFn,
-            initialLocationKeys: plSelectedLocations,
-            initialCashflowKeys: plSelectedCashflows,
-            initialCategoryKeys: plSelectedCategories,
-            initialDateStart:    plSelectedStartDate,
-            initialDateEnd:      plSelectedEndDate,
-            onClearAll:          clearFn,
-            onDone:              { navState.txAllFiltersSheetPresented = false },
-            onCommitFilter:      commitFn,
-            onCommitDate:        { [self] start, end in plSelectedStartDate = start; plSelectedEndDate = end },
-            onHeightChange:      { h in navState.txAllFiltersSheetHeight = h }
+    /// Opens a location filter sheet directly, relayed via navState so ContentView
+    /// presents it above the tab bar.
+    private func presentLocationSheet() {
+        guard let navState else { return }
+        navState.txFilterSheetContent = AnyView(
+            TxFilterSheet(
+                filter:      .location,
+                options:     TransactionsView.locationOptions,
+                initialKeys: plSelectedLocations,
+                onCommit:    { [self] newKeys in plSelectedLocations = newKeys },
+                onDone:      { navState.txFilterSheetPresented = false }
+            )
         )
-        sheet.showDateRow = false
-
-        navState.txAllFiltersSheetHeight  = TxAllFiltersSheet.compactHeightNoDate
-        navState.txAllFiltersSheetContent = AnyView(sheet)
-        navState.txAllFiltersSheetPresented = true
+        navState.txFilterSheetHeight    = plFilterSheetHeight(for: .location)
+        navState.txFilterSheetPresented = true
     }
 
     /// Chip label for the period navigator.
@@ -747,32 +983,32 @@ struct ProfitLossDetailView: View {
     private var metricsSection: some View {
         if !hasDataForPeriod {
             metricsNoDataView
-                .frame(height: normalMetricsHeight > 0 ? normalMetricsHeight : nil)
-                .clipped()
+                // Match the height of the full P&L metrics block (hero + rows) so the
+                // chart below doesn't shift position when navigating to an empty period.
+                .frame(height: normalMetricsHeight > 0 ? normalMetricsHeight : nil,
+                       alignment: .center)
         } else {
             unifiedMetricsContent
         }
     }
 
-    /// Figma "No data available" (2365:44412).
-    /// Container: pt=24, pb=32, gap=24, centered. Icon: 64×64 circle. Text: 254pt, gap=8, lh=22.
+    /// The no-data content itself — no fixed padding; callers wrap this in a
+    /// frame(height: normalMetricsHeight) so it matches the rows it replaces.
     private var metricsNoDataView: some View {
-        VStack(spacing: 24) {
-            // Figma image 339 (node 2366:47948): 64×64 circle, object-cover fill.
-            Image("NoDataChart")
+        VStack(spacing: 8) {
+            Image("no-data")
                 .resizable()
-                .scaledToFill()
+                .scaledToFit()
                 .frame(width: 64, height: 64)
-                .clipShape(Circle())
 
-            // Text group: 254pt wide, centered, gap 8, line-height 22
-            VStack(spacing: 8) {
+            // Header 18pt / 26pt line-height, subtext 14pt / 22pt line-height, no gap between them.
+            VStack(spacing: 0) {
                 Text("No data available")
                     .font(.custom(AppFont.Text.semiBold, size: 18))
                     .foregroundStyle(Color(red: 16/255, green: 16/255, blue: 16/255))
                     .frame(maxWidth: 254)
                     .multilineTextAlignment(.center)
-                    .lineSpacing(22 - 18)
+                    .lineSpacing(26 - 18)
 
                 Text("Try adjusting the date range")
                     .font(.custom(AppFont.Text.regular, size: 14))
@@ -783,8 +1019,6 @@ struct ProfitLossDetailView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 24)
-        .padding(.bottom, 32)
     }
 
     private var unifiedMetricsContent: some View {
@@ -804,7 +1038,6 @@ struct ProfitLossDetailView: View {
             revYoy:   isScrubbing ? scrubRevYoyPct : periodRevYoyPct,
             expYoy:   isScrubbing ? scrubExpYoyPct : periodExpYoyPct,
             hasPrev: hasPrev,
-            yoySuffix: "since last year",
             isFutureScrub: isFutureScrub,
             animateNumbers: isScrubbing,
             revOnTap: showRevenueExpensesCard ? { showRevenueDetail = true } : nil,
@@ -816,7 +1049,7 @@ struct ProfitLossDetailView: View {
         revTitle: String, expTitle: String,
         revValue: Double, expValue: Double,
         revYoy: Double, expYoy: Double,
-        hasPrev: Bool, yoySuffix: String,
+        hasPrev: Bool,
         isFutureScrub: Bool = false,
         animateNumbers: Bool = false,
         revOnTap: (() -> Void)? = nil,
@@ -827,11 +1060,8 @@ struct ProfitLossDetailView: View {
                 metricRow(
                     indicator: .revenue,
                     title: revTitle,
-                    subtitle: isFutureScrub ? "↑ Change from last year TBD" : (hasPrev ? yoyLabel(revYoy, up: true) + " \(yoySuffix)" : nil),
-                    subtitleColor: isFutureScrub ? Color.gray3 : yoySubtitleColor(revYoy),
+                    yoyPct: (hasPrev && !isFutureScrub) ? revYoy : nil,
                     value: fmt(revValue),
-                    valueFont: .paragraphSemibold30,
-                    noPreviousData: !hasPrev && !isFutureScrub,
                     animateValue: animateNumbers ? revValue : nil,
                     onTap: revOnTap,
                     indicatorVisible: animateNumbers
@@ -841,12 +1071,9 @@ struct ProfitLossDetailView: View {
                 metricRow(
                     indicator: .expenses,
                     title: expTitle,
-                    subtitle: isFutureScrub ? "↓ Change from last year TBD" : (hasPrev ? yoyLabel(expYoy, up: false) + " \(yoySuffix)" : nil),
-                    subtitleColor: isFutureScrub ? Color.gray3 : yoySubtitleColor(expYoy),
+                    yoyPct: (hasPrev && !isFutureScrub) ? -expYoy : nil,
                     value: fmt(expValue),
                     valuePrefix: "-",
-                    valueFont: .paragraphSemibold30,
-                    noPreviousData: !hasPrev && !isFutureScrub,
                     animateValue: animateNumbers ? expValue : nil,
                     onTap: expOnTap,
                     indicatorVisible: animateNumbers
@@ -862,89 +1089,90 @@ struct ProfitLossDetailView: View {
 
     private func metricRow(indicator: IndicatorKind,
                             title: String,
-                            subtitle: String?,
-                            subtitleColor: Color = Color.gray3,
+                            yoyPct: Double?,
                             value: String,
                             valuePrefix: String = "",
-                            valueFont: Font,
-                            noPreviousData: Bool = false,
                             animateValue: Double? = nil,
                             onTap: (() -> Void)? = nil,
                             indicatorVisible: Bool = false) -> some View {
-        let rowContent = HStack(alignment: .top, spacing: 0) {
-            // Indicator slides in from the left when scrubbing begins, pushing the
-            // text to the right. Width collapses to 0 when not scrubbing so the
-            // text fills the full available width. The 20pt total = 12pt dot + 8pt gap.
-            ZStack(alignment: .leading) {
+        let rowContent = HStack(alignment: .center, spacing: 0) {
+            // Indicator slides in from the left when scrubbing begins. Uses spacing: 0
+            // so no phantom gap appears when the indicator is hidden (width: 0). The 8pt
+            // gap between the dot and the text is baked into the trailing padding, which
+            // also collapses to 0, so the text sits flush at the left edge when idle.
+            // The container stretches the full row height; the dot sits at top + 2pt to
+            // align with the title label, matching the Figma "Indicator default" spec.
+            ZStack(alignment: .topLeading) {
                 switch indicator {
                 case .revenue:
                     Circle()
-                        .fill(Color.green7)
+                        .fill(Color.barRevPrimary)
                         .frame(width: 12, height: 12)
-                        .offset(y: -2)
+                        .padding(.top, 2)
                 case .expenses:
                     Circle()
-                        .fill(Color.red6)
+                        .fill(Color.barExpPrimary)
                         .frame(width: 12, height: 12)
-                        .offset(y: -2)
+                        .padding(.top, 2)
                 }
             }
-            .frame(width: indicatorVisible ? 20 : 0, height: 24, alignment: .leading)
-            .opacity(indicatorVisible ? 1 : 0)
+            .frame(maxHeight: .infinity, alignment: .topLeading)
+            .frame(width: indicatorVisible ? 12 : 0)
             .clipped()
+            .padding(.trailing, indicatorVisible ? 8 : 0)
+            .opacity(indicatorVisible ? 1 : 0)
             .animation(.spring(response: 0.25, dampingFraction: 0.85), value: indicatorVisible)
 
-            // Text column: title+value on first row, subtitle below
+            // Text column fills all remaining width, pushing badge+chevron to trailing edge.
             VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .center, spacing: 0) {
-                    Text(title)
-                        .font(.paragraphSemibold30)
-                        .foregroundStyle(Color.gray1)
-                    Spacer()
-                    HStack(spacing: 0) {
-                        if !valuePrefix.isEmpty { Text(valuePrefix).font(valueFont).foregroundStyle(Color.gray1) }
-                        SlotMachineText(
-                            text: value,
-                            value: animateValue ?? 0,
-                            font: valueFont,
-                            color: Color.gray1,
-                            animated: animateValue != nil
-                        )
-                        .multilineTextAlignment(.trailing)
+                Text(title)
+                    .font(.paragraph20)
+                    .foregroundStyle(Color.gray3)
+                HStack(spacing: 0) {
+                    if !valuePrefix.isEmpty {
+                        Text(valuePrefix)
+                            .font(.paragraphSemibold30)
+                            .foregroundStyle(Color.gray1)
                     }
+                    SlotMachineText(
+                        text: value,
+                        value: animateValue ?? 0,
+                        font: .paragraphSemibold30,
+                        color: Color.gray1,
+                        animated: animateValue != nil
+                    )
                 }
-
-                Group {
-                    if noPreviousData {
-                        Text("No previous data")
-                            .font(.paragraph20)
-                            .foregroundStyle(Color.gray3)
-                    } else if let s = subtitle {
-                        Text(s)
-                            .font(.paragraph20)
-                            .foregroundStyle(subtitleColor)
-                    }
-                }
-                .frame(height: 22, alignment: .leading)
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // 8pt between text and badge, 8pt between badge and chevron.
+            YoyBadge(pct: yoyPct)
+                .padding(.leading, 8)
 
             if onTap != nil {
                 Image("icon16ChevronRight")
                     .resizable()
                     .renderingMode(.template)
                     .scaledToFit()
-                    .foregroundStyle(Color.gray3)
+                    .foregroundStyle(Color.gray4)
                     .frame(width: 16, height: 16)
-                    .padding(.top, 4)
+                    .padding(.leading, 8)
             }
         }
-        .padding(.vertical, 9)
+        .padding(.vertical, 11)
+        .frame(maxWidth: .infinity)
 
         return Group {
             if let action = onTap {
-                Button(action: action) { rowContent }
-                    .buttonStyle(.plain)
+                Button(action: {
+                    guard !isDragging else { return }
+                    action()
+                }) {
+                    rowContent
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
             } else {
                 rowContent
             }
@@ -957,8 +1185,8 @@ struct ProfitLossDetailView: View {
     /// Revenue/Expenses pages use single-axis charts; P&L uses the default net-profit layout.
     private var chartMode: PLYearBarChart.ChartMode {
         switch pageTitle {
-        case "Revenue":  return .revenueOnly(1.0)
-        case "Expenses": return .expensesOnly(1.0)
+        case "Revenue":  return .revenueOnly(selectedCategoryProportion)
+        case "Expenses": return .expensesOnly(selectedCategoryProportion)
         default:         return .netProfit
         }
     }
@@ -1013,7 +1241,13 @@ struct ProfitLossDetailView: View {
             // expense category name matches directly.
             let categoryKey: String? = {
                 guard !showRevenueExpensesCard else { return nil }
-                // If exactly one category is selected via the All Filters chip, pass it through.
+                // The selected category row (selectedDonutIndex) is the primary category filter.
+                // Fall back to an explicit All Filters chip selection if no donut row is active.
+                let name = selectedCategoryName
+                if !name.isEmpty {
+                    if pageTitle == "Revenue" { return txRevKey(for: name) }
+                    return name
+                }
                 guard plSelectedCategories.count == 1, let key = plSelectedCategories.first else { return nil }
                 if pageTitle == "Revenue" { return txRevKey(for: key) }
                 return key
@@ -1068,24 +1302,13 @@ struct ProfitLossDetailView: View {
         return f.string(from: NSNumber(value: abs(value))) ?? "$0"
     }
 
-    private func yoyLabel(_ pct: Double, up: Bool) -> String {
-        let arrow = up ? "↑" : "↓"
-        return "\(arrow) \(Int(abs(pct).rounded()))%"
-    }
-
-    /// Color for a YoY percentage label. ≥+50 % → green3, ≤−50 % → red3, else gray3.
-    private func yoySubtitleColor(_ pct: Double) -> Color {
-        if pct >= 50  { return Color.green3 }
-        if pct <= -50 { return Color.red3   }
-        return Color.gray3
-    }
 }
 
 private struct ViewAllButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .background(
-                configuration.isPressed ? Color.gray7 : Color.clear,
+                configuration.isPressed ? Color.gray6 : Color.gray7,
                 in: Capsule()
             )
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)

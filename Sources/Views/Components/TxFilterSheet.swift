@@ -251,6 +251,133 @@ struct TxFilterRow: View {
     }
 }
 
+// MARK: - Category picker sheet (single-select, radio buttons)
+
+/// Bottom sheet for choosing a single revenue or expense category on the P&L detail pages.
+/// Selection is staged in `pendingIndex`; committed only when Done is tapped.
+struct PLCategoryPickerSheet: View {
+    let title: String
+    let options: [(id: Int, label: String)]
+    let onSelect: (Int) -> Void
+    let onDone: () -> Void
+
+    @State private var pendingIndex: Int
+
+    init(title: String,
+         options: [(id: Int, label: String)],
+         initialIndex: Int,
+         onSelect: @escaping (Int) -> Void,
+         onDone: @escaping () -> Void) {
+        self.title    = title
+        self.options  = options
+        self.onSelect = onSelect
+        self.onDone   = onDone
+        _pendingIndex = State(initialValue: initialIndex)
+    }
+
+    /// Compact sheet height for a given row count.
+    /// CustomBottomSheet top-padding 24pt + header 64pt + rows 56pt each + bottom inset 32pt.
+    static func height(rowCount: Int) -> CGFloat {
+        CGFloat(24 + 64 + rowCount * 56 + 32)
+    }
+
+    @State private var isScrolled = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // ── Header ──────────────────────────────────────────────────────
+            HStack(spacing: 10) {
+                Text(title)
+                    .font(.heading30)
+                    .foregroundStyle(Color.gray1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button {
+                    onSelect(pendingIndex)
+                    onDone()
+                } label: {
+                    Text("Done")
+                        .font(.paragraphSemibold30)
+                        .foregroundStyle(Color.white)
+                        .frame(height: 48)
+                        .padding(.horizontal, 22)
+                        .background(Color.gray1)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            .frame(height: 48)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 16)
+            .overlay(alignment: .bottom) {
+                if isScrolled {
+                    Rectangle()
+                        .fill(Color.gray5)
+                        .frame(height: 1)
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: isScrolled)
+
+            // ── Radio rows ───────────────────────────────────────────────────
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 0) {
+                    ForEach(options, id: \.id) { option in
+                        Button {
+                            pendingIndex = option.id
+                        } label: {
+                            HStack(spacing: 16) {
+                                Text(option.label)
+                                    .font(.paragraphMedium30)
+                                    .foregroundStyle(Color.gray1)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                PLRadioButton(selected: option.id == pendingIndex)
+                            }
+                            .frame(height: 56)
+                            .contentShape(Rectangle())
+                            .overlay(alignment: .bottom) {
+                                Color.black.opacity(0.05).frame(height: 1)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 24)
+            }
+            .safeAreaInset(edge: .bottom) { Color.clear.frame(height: 32) }
+            .onScrollGeometryChange(for: Bool.self) { geo in
+                geo.contentOffset.y + geo.contentInsets.top > 0
+            } action: { _, scrolled in
+                withAnimation(.easeInOut(duration: 0.2)) { isScrolled = scrolled }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+}
+
+// MARK: - Radio button (P&L category picker)
+
+struct PLRadioButton: View {
+    let selected: Bool
+
+    var body: some View {
+        ZStack {
+            if selected {
+                // White fill behind the ring so the 6pt center reads as white.
+                Circle()
+                    .fill(Color.white)
+                // 7pt-thick ring drawn inward from the 20pt edge, leaving a 6pt white center.
+                Circle()
+                    .strokeBorder(Color.gray1, lineWidth: 7)
+            } else {
+                Circle()
+                    .strokeBorder(Color.gray1.opacity(0.30), lineWidth: 2)
+            }
+        }
+        .frame(width: 20, height: 20)
+    }
+}
+
 // MARK: - Checkbox
 
 enum TxCheckboxState { case unchecked, checked, indeterminate }

@@ -326,6 +326,26 @@ struct PLYearBarChart: View {
         .frame(height: 10)
     }
 
+    // MARK: Bar colour palette
+    //
+    // Single source of truth — change any token here and every chart mode updates.
+    //
+    //  revPrimary   / expPrimary   — the "light" (background tint) portion of a bar.
+    //  revSecondary / expSecondary — the overlay/category portion (net-profit line colour
+    //                                on P&L; selected-category segment on detail pages).
+    //  neutralPrimary              — neutral light fill used at rest on the P&L chart and
+    //                                for inactive bars during scrub on all chart modes.
+    //  dimSecondary                — dimmed secondary fill for inactive scrub bars.
+
+    private enum BarPalette {
+        static let revPrimary:    Color = .barRevPrimary    // darker green — overlay / category
+        static let revSecondary:  Color = .barRevSecondary  // lighter green — background tint
+        static let expPrimary:    Color = .barExpPrimary    // darker red   — overlay / category
+        static let expSecondary:  Color = .barExpSecondary  // lighter red   — background tint
+        static let neutralPrimary: Color = .gray7           // neutral light fill (P&L at rest / inactive)
+        static let dimSecondary:  Color = .gray5            // dimmed secondary (inactive scrub)
+    }
+
     // MARK: Bar column (dispatcher)
 
     @ViewBuilder
@@ -360,19 +380,17 @@ struct PLYearBarChart: View {
         let netH   = CGFloat(abs(net) / s) * zeroY
         let isPos  = net >= 0
 
-        // At rest: revenue/expense light portions are gray; the dark (net-profit)
-        // section within each bar is colored (green1 when profitable, red1 when not).
-        // Line indicator stays gray1 at all times.
-        // While scrubbing: hovered bar shows full color; all other bars go fully gray.
-        let showFullColor  = isScrubbing && isActiveScrub   // hovered during scrub
-        let showNetColor   = !isScrubbing                   // at rest
+        // At rest: neutral (gray7) light fill; secondary uses green3/red3 for the net-profit overlay.
+        // Active scrub: revenue light → revPrimary (green7), expense light → expPrimary (red7)
+        //               so the hovered bar matches the Revenue/Expense detail page palette.
+        // Inactive scrub: both portions dim — neutralPrimary light + dimSecondary dark.
+        let isInactiveScrub  = isScrubbing && !isActiveScrub
+        let isActiveScrubBar = isScrubbing &&  isActiveScrub
 
-        let revLight: Color = showFullColor ? .green7 : .gray7
-        let revDark:  Color = showFullColor ? .green1
-                            : (showNetColor && isPos  ? .green1 : .gray5)
-        let expLight: Color = showFullColor ? .red7   : .gray7
-        let expDark:  Color = showFullColor ? .red1
-                            : (showNetColor && !isPos ? .red1   : .gray5)
+        let revLight: Color = isActiveScrubBar ? BarPalette.revSecondary : BarPalette.neutralPrimary
+        let revDark:  Color = (!isInactiveScrub && isPos)  ? BarPalette.revPrimary : BarPalette.dimSecondary
+        let expLight: Color = isActiveScrubBar ? BarPalette.expSecondary : BarPalette.neutralPrimary
+        let expDark:  Color = (!isInactiveScrub && !isPos) ? BarPalette.expPrimary  : BarPalette.dimSecondary
         let lineColor: Color = .gray1
 
         let lineY: CGFloat = isPos
@@ -391,8 +409,9 @@ struct PLYearBarChart: View {
         .clipped()
         // Overlay applied AFTER .clipped() so the round caps can bleed
         // 2pt beyond the bar edge on each side without being cropped.
+        // During scrub the line is only rendered for the active (hovered) bar.
         .overlay(alignment: .top) {
-            if m.hasData && netH > 0 {
+            if m.hasData && netH > 0 && !isInactiveScrub {
                 Capsule()
                     .fill(lineColor)
                     .frame(height: 2)
@@ -417,9 +436,11 @@ struct PLYearBarChart: View {
         let prop   = CGFloat(max(0, min(1, proportion)))
         let catH   = revH * prop
 
-        let showColor: Bool   = isScrubbing && isActiveScrub
-        let lightColor: Color = showColor ? .green7 : .gray7
-        let darkColor:  Color = showColor ? .green1 : .gray5
+        // Active bar (at rest OR hovered): revPrimary (green7) light + revSecondary (green3) dark.
+        // Inactive scrub: dims to neutralPrimary (gray7) light + dimSecondary (gray5) dark.
+        let isInactiveScrubBar: Bool = isScrubbing && !isActiveScrub
+        let lightColor: Color = isInactiveScrubBar ? BarPalette.neutralPrimary : BarPalette.revSecondary
+        let darkColor:  Color = isInactiveScrubBar ? BarPalette.dimSecondary   : BarPalette.revPrimary
 
         Group {
             if revH > 0 && m.hasData {
@@ -458,9 +479,11 @@ struct PLYearBarChart: View {
         let prop   = CGFloat(max(0, min(1, proportion)))
         let catH   = expH * prop
 
-        let showColor: Bool   = isScrubbing && isActiveScrub
-        let lightColor: Color = showColor ? .red7  : .gray7
-        let darkColor:  Color = showColor ? .red1  : .gray5
+        // Active bar (at rest OR hovered): expPrimary (red7) light + expSecondary (red3) dark.
+        // Inactive scrub: dims to neutralPrimary (gray7) light + dimSecondary (gray5) dark.
+        let isInactiveScrubBar: Bool = isScrubbing && !isActiveScrub
+        let lightColor: Color = isInactiveScrubBar ? BarPalette.neutralPrimary : BarPalette.expSecondary
+        let darkColor:  Color = isInactiveScrubBar ? BarPalette.dimSecondary   : BarPalette.expPrimary
 
         Group {
             if expH > 0 && m.hasData {
