@@ -552,6 +552,17 @@ extension AppFinancials {
                     isRevenue: tx.isRevenue
                 )
             }
+
+            // Extra Whole Foods run on Dec 15 — added after the date swap so it
+            // lands on Dec 15 and isn't remapped by the swap table above.
+            if let dec15 = Calendar.current.date(from: DateComponents(year: 2024, month: 12, day: 15)) {
+                items.append(Transaction(
+                    id: UUID(), date: dec15, amount: -63.20,
+                    merchantName: "Whole Foods",
+                    subtitle: dateLabel(year: 2024, month: 12, day: 15),
+                    locationName: nil, cardInfo: "Visa 7832", type: .purchase,
+                    expenseCategory: ExpenseCategory.personal.rawValue, isRevenue: false))
+            }
         }
 
         return items.sorted { $0.date < $1.date }
