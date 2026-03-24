@@ -49,6 +49,9 @@ struct TxFilterBar: View {
 
     @Binding var isSearching: Bool
     @Binding var searchText: String
+    /// Increment to re-focus the search field while isSearching is already true
+    /// (e.g. after the All Filters sheet is dismissed via Clear Filters).
+    var searchRefocusTrigger: Int = 0
 
     @FocusState private var isFocused: Bool
 
@@ -76,8 +79,9 @@ struct TxFilterBar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
         GeometryReader { geo in
-            // expandedSearchWidth leaves exactly enough room for the morph chip
-            // (filterButtonWidth) plus 8pt gap and 24pt padding each side.
+            // expandedSearchWidth = screenWidth − 48pt padding − 8pt gap − filterButtonWidth.
+            // The Date chip is removed from the HStack when searching (not just
+            // collapsed to 0) so it contributes no ghost spacing to this calculation.
             let fbw: CGFloat = activeFilterCount > 0 ? 54 : 40
             let expandedSearchWidth = geo.size.width - 56 - fbw
 
@@ -197,13 +201,12 @@ struct TxFilterBar: View {
                             withAnimation(.easeInOut(duration: 0.25)) { isSearching = true }
                         }
 
-                    // ── Date chip — first filter chip; collapses to zero width when
-                    // the search bar expands so the morph chip stays flush to the right.
-                    TxChip(label: "Date", value: periodLabel.isEmpty ? nil : periodLabel, onTap: onTapDate)
-                        .frame(width: isSearching ? 0 : nil)
-                        .clipped()
-                        .opacity(isSearching ? 0 : 1)
-                        .allowsHitTesting(!isSearching)
+                    // ── Date chip — removed from HStack entirely when searching so it
+                    // contributes no ghost HStack gap next to the All Filters button.
+                    if !isSearching {
+                        TxChip(label: "Date", value: periodLabel.isEmpty ? nil : periodLabel, onTap: onTapDate)
+                            .transition(.opacity)
+                    }
 
                     // ── Morph chip: Location filter ↔ All Filters button ──
                     // Same container, width + content both animate with isSearching.
@@ -306,6 +309,12 @@ struct TxFilterBar: View {
             } else {
                 isFocused = false
             }
+        }
+        // Re-focus the search field when the All Filters sheet is dismissed
+        // after clearing filters (isSearching stays true but keyboard was dismissed).
+        .onChange(of: searchRefocusTrigger) { _, _ in
+            guard isSearching else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { isFocused = true }
         }
     }
 }

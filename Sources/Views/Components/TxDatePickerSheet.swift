@@ -424,6 +424,15 @@ enum DatePreset: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// Short label used in the P&L date sheet.
+    /// "Today" → "Day"; "This week/month/quarter/year" → "Week/Month/Quarter/Year".
+    var plLabel: String {
+        if self == .today { return "Day" }
+        guard rawValue.hasPrefix("This ") else { return rawValue }
+        let rest = String(rawValue.dropFirst(5))
+        return rest.prefix(1).uppercased() + rest.dropFirst()
+    }
+
     private static var appToday: Date {
         Calendar.current.date(from: DateComponents(year: 2024, month: 12, day: 15))!
     }
@@ -482,9 +491,21 @@ struct TxDateSheet: View {
     /// Called alongside onCommit with the selected preset (nil for custom dates).
     /// Used by the P&L chip to translate the preset into period/year/quarter/month.
     var onCommitPreset: ((DatePreset?) -> Void)?   = nil
+    /// P&L mode: shows only Month/Quarter/Year presets, replaces Done with a
+    /// "go to current period" icon button, and auto-dismisses on preset selection.
+    var plMode: Bool = false
+    /// The preset that maps to the currently viewed period (Year/Quarter/Month).
+    /// Used only for the initial radio-button selection; the calendar icon uses onGoToCurrent.
+    var currentPeriodPreset: DatePreset? = nil
+    /// Called when the calendar-today icon is tapped in P&L mode.
+    /// The host should navigate to the actual current period (today / this week / etc.)
+    /// and dismiss the sheet.
+    var onGoToCurrent: (() -> Void)? = nil
 
     /// Height = sheet-top(24) + header(48) + VStack-gap(16) + 6 rows × 56 + bottom-pad(64)
     static let compactHeight: CGFloat = 488
+    /// P&L mode height matches the standard height (same row count, only labels differ).
+    static let plCompactHeight: CGFloat = compactHeight
 
     @State private var selectedPreset:  DatePreset?
     @State private var customStart:     Date?
@@ -502,14 +523,20 @@ struct TxDateSheet: View {
          onBack: (() -> Void)? = nil,
          onHeightChange: ((CGFloat) -> Void)? = nil,
          initialPreset: DatePreset? = nil,
-         onCommitPreset: ((DatePreset?) -> Void)? = nil) {
-        self.initialStart    = initialStart
-        self.initialEnd      = initialEnd
-        self.onCommit        = onCommit
-        self.onDone          = onDone
-        self.onBack          = onBack
-        self.onHeightChange  = onHeightChange
-        self.onCommitPreset  = onCommitPreset
+         onCommitPreset: ((DatePreset?) -> Void)? = nil,
+         plMode: Bool = false,
+         currentPeriodPreset: DatePreset? = nil,
+         onGoToCurrent: (() -> Void)? = nil) {
+        self.initialStart          = initialStart
+        self.initialEnd            = initialEnd
+        self.onCommit              = onCommit
+        self.onDone                = onDone
+        self.onBack                = onBack
+        self.onHeightChange        = onHeightChange
+        self.onCommitPreset        = onCommitPreset
+        self.plMode                = plMode
+        self.currentPeriodPreset   = currentPeriodPreset
+        self.onGoToCurrent         = onGoToCurrent
         let matched = initialPreset ?? DatePreset.allCases.first { $0.matches(start: initialStart, end: initialEnd) }
         _selectedPreset = State(initialValue: matched)
         if matched == nil {
@@ -575,9 +602,17 @@ struct TxDateSheet: View {
             headerView
             VStack(spacing: 0) {
                 ForEach(DatePreset.allCases) { preset in
-                    DatePresetRow(label: preset.rawValue,
+                    DatePresetRow(label: plMode ? preset.plLabel : preset.rawValue,
                                   isSelected: selectedPreset == preset) {
-                        selectedPreset = (selectedPreset == preset) ? nil : preset
+                        if plMode {
+                            // Auto-commit and dismiss — no Done tap needed.
+                            selectedPreset = preset
+                            onCommitPreset?(preset)
+                            onCommit(preset.dateRange.start, preset.dateRange.end)
+                            onDone()
+                        } else {
+                            selectedPreset = (selectedPreset == preset) ? nil : preset
+                        }
                     }
                 }
                 CustomDatePresetRow(onTap: pushCustomPicker)
@@ -625,6 +660,32 @@ struct TxDateSheet: View {
                         .padding(.horizontal, 22)
                         .background(Color.gray1)
                         .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            .frame(height: 48)
+        } else if plMode {
+            // P&L mode: title on the left, "go to current period" icon button on the right.
+            HStack(spacing: 10) {
+                Text("Date")
+                    .font(.heading30)
+                    .foregroundStyle(Color.gray1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button {
+                    // Navigate to the actual current period (today / this week / etc.)
+                    onGoToCurrent?()
+                    onDone()
+                } label: {
+                    Image("savingsIconCalendarToday")
+                        .resizable()
+                        .renderingMode(.template)
+                        .scaledToFit()
+                        .foregroundStyle(Color.gray1)
+                        .frame(width: 24, height: 24)
+                        .frame(width: 48, height: 48)
+                        .background(Color.gray6)
+                        .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
             }

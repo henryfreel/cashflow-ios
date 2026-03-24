@@ -9,7 +9,7 @@ import SwiftUI
 //   • Light revenue bar  — grows UP from zero (top-rounded corners)
 //   • Light expense bar  — grows DOWN from zero (bottom-rounded corners)
 //   • Dark net-profit overlay — sits at the zero end of the relevant bar
-// Active bar uses green/red colors; inactive bars use gray7/gray5.
+// Active bar uses green/red colors; inactive bars use barNeutral/barDim.
 // Net-profit line indicator (2pt) only rendered for the active bar.
 // Works for all three period modes: Year (12 months), Quarter (13 weeks),
 // Month (N days).
@@ -285,6 +285,11 @@ struct PLYearBarChart: View {
     private var labelIndices: Set<Int> {
         let n = entries.count
         guard n > 13 else { return Set(0..<n) }
+        // Day view (24 hourly bars): show even hours only (0, 2, 4, … 22).
+        if n == 24 { return Set(stride(from: 0, to: 24, by: 2)) }
+        // Month view (28–31 bars): every other day — clean and consistent across
+        // Feb/30-day/31-day months without visible gaps.
+        if n >= 28 { return Set(stride(from: 0, to: n, by: 2)) }
 
         // Try common label counts (in preference order) for an exact stride.
         let candidates = [10, 11, 8, 9, 12, 7, 6]
@@ -307,19 +312,47 @@ struct PLYearBarChart: View {
             let g        = gap(for: barZoneW)
             let n        = entries.count
             let barW     = max(0, (barZoneW - g * CGFloat(n - 1)) / CGFloat(n))
+
             ZStack(alignment: .topLeading) {
+                // Pass 1 — non-active visible labels (rendered below active).
                 ForEach(entries.indices, id: \.self) { i in
-                    let isActiveScrub = i == scrubbingIndex
-                    // Always show the scrubbing-active label, even if normally hidden
-                    let isVisible = visible.contains(i) || isActiveScrub
-                    if isVisible {
+                    if visible.contains(i), i != scrubbingIndex {
                         let cx = yAxisW + axisToBarGap + CGFloat(i) * (barW + g) + barW / 2
                         Text(entries[i].label)
                             .font(.custom(AppFont.Text.regular, size: 10))
-                            .foregroundStyle(isActiveScrub ? Color.gray1 : Color.gray4)
+                            .foregroundStyle(Color.gray4)
                             .fixedSize()
                             .position(x: cx, y: 5)
                     }
+                }
+
+                // Pass 2 — active label on top: white background + left/right fade
+                // gradients so it stays legible when squeezed between double-digit labels.
+                if let si = scrubbingIndex, si < entries.count {
+                    let cx = yAxisW + axisToBarGap + CGFloat(si) * (barW + g) + barW / 2
+                    Text(entries[si].label)
+                        .font(.custom(AppFont.Text.regular, size: 10))
+                        .foregroundStyle(Color.gray1)
+                        .padding(.horizontal, 2)
+                        .background(Color.white)
+                        .overlay(alignment: .leading) {
+                            LinearGradient(
+                                colors: [.clear, .white],
+                                startPoint: .leading, endPoint: .trailing
+                            )
+                            .frame(width: 14)
+                            .offset(x: -14)
+                        }
+                        .overlay(alignment: .trailing) {
+                            LinearGradient(
+                                colors: [.white, .clear],
+                                startPoint: .leading, endPoint: .trailing
+                            )
+                            .frame(width: 14)
+                            .offset(x: 14)
+                        }
+                        .fixedSize()
+                        .position(x: cx, y: 5)
                 }
             }
         }
@@ -342,8 +375,8 @@ struct PLYearBarChart: View {
         static let revSecondary:  Color = .barRevSecondary  // lighter green — background tint
         static let expPrimary:    Color = .barExpPrimary    // darker red   — overlay / category
         static let expSecondary:  Color = .barExpSecondary  // lighter red   — background tint
-        static let neutralPrimary: Color = .gray7           // neutral light fill (P&L at rest / inactive)
-        static let dimSecondary:  Color = .gray5            // dimmed secondary (inactive scrub)
+        static let neutralPrimary: Color = .barNeutral  // inactive light fill (P&L at rest / non-hovered)
+        static let dimSecondary:  Color = .barDim       // inactive dark fill (non-hovered during scrub)
     }
 
     // MARK: Bar column (dispatcher)
@@ -513,6 +546,9 @@ struct PLYearBarChart: View {
     private func revenueBar(revH: CGFloat, netH: CGFloat, isPos: Bool,
                              light: Color, dark: Color, isCurrent: Bool) -> some View {
         if revH > 0 {
+            // When net-profit fills the full revenue bar the line sits exactly at
+            // the rounded top edge — drop the radius so the edge looks clean.
+            let topR: CGFloat = (isPos && netH >= revH) ? 0 : 4
             VStack(spacing: 0) {
                 if isPos {
                     barSegment(color: light, height: max(0, revH - netH), isCurrent: isCurrent)
@@ -523,8 +559,8 @@ struct PLYearBarChart: View {
             }
             .frame(maxWidth: .infinity)
             .clipShape(UnevenRoundedRectangle(
-                topLeadingRadius: 4, bottomLeadingRadius: 0,
-                bottomTrailingRadius: 0, topTrailingRadius: 4
+                topLeadingRadius: topR, bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0, topTrailingRadius: topR
             ))
             .frame(height: zeroY, alignment: .bottom)
         } else {
@@ -538,6 +574,9 @@ struct PLYearBarChart: View {
     private func expenseBar(expH: CGFloat, netH: CGFloat, isPos: Bool,
                              light: Color, dark: Color, isCurrent: Bool) -> some View {
         if expH > 0 {
+            // Same as revenueBar — drop bottom radius when net-profit fills the
+            // full expense bar so the flat line edge looks intentional.
+            let botR: CGFloat = (!isPos && netH >= expH) ? 0 : 4
             VStack(spacing: 0) {
                 if !isPos {
                     barSegment(color: dark,  height: min(netH, expH),     isCurrent: isCurrent)
@@ -548,8 +587,8 @@ struct PLYearBarChart: View {
             }
             .frame(maxWidth: .infinity)
             .clipShape(UnevenRoundedRectangle(
-                topLeadingRadius: 0, bottomLeadingRadius: 4,
-                bottomTrailingRadius: 4, topTrailingRadius: 0
+                topLeadingRadius: 0, bottomLeadingRadius: botR,
+                bottomTrailingRadius: botR, topTrailingRadius: 0
             ))
             .frame(height: zeroY, alignment: .top)
         } else {

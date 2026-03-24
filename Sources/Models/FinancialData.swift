@@ -527,6 +527,33 @@ extension AppFinancials {
             locationName: "General Savings", cardInfo: nil, type: .bankTransfer,
             expenseCategory: ExpenseCategory.transfers.rawValue, isRevenue: false))
 
+        // ── Demo date swap (December 2024 only) ─────────────────────────────────
+        // Swap Dec 11 ↔ Dec 14 and Dec 13 ↔ Dec 15 so both swapped pairs have
+        // a more balanced mix of revenue and expenses for day-view demos.
+        if year == 2024 && month == 12 {
+            let swapMap: [Int: Int] = [11: 14, 14: 11, 13: 15, 15: 13]
+            let cal2 = Calendar.current
+            items = items.map { tx in
+                let d = cal2.component(.day, from: tx.date)
+                guard let newDay = swapMap[d] else { return tx }
+                var comps = DateComponents()
+                comps.year = year; comps.month = month; comps.day = newDay
+                let newDate = cal2.date(from: comps) ?? tx.date
+                return Transaction(
+                    id: tx.id,
+                    date: newDate,
+                    amount: tx.amount,
+                    merchantName: tx.merchantName,
+                    subtitle: dateLabel(year: year, month: month, day: newDay),
+                    locationName: tx.locationName,
+                    cardInfo: tx.cardInfo,
+                    type: tx.type,
+                    expenseCategory: tx.expenseCategory,
+                    isRevenue: tx.isRevenue
+                )
+            }
+        }
+
         return items.sorted { $0.date < $1.date }
     }
 
@@ -742,6 +769,8 @@ enum AppFinancials {
     // Net profit   : ~$20,741   (matches December monthly)
 
     static let decemberDaily: [DailyFinancial] = {
+        // NOTE: Dec 11 ↔ Dec 14 and Dec 13 ↔ Dec 15 are swapped here to match
+        // the demo date-swap applied in sampleTransactions for December 2024.
         let active: [(Int, Double, Double)] = [
             ( 1,  4_717.45,  3_381.35),  // net  1,336.10
             ( 2,  5_777.54,  4_122.35),  // net  1,655.19
@@ -753,11 +782,11 @@ enum AppFinancials {
             ( 8,  5_956.02,  4_208.45),  // net  1,747.57
             ( 9,  4_593.91,  3_351.01),  // net  1,242.90
             (10,  5_613.89,  3_890.30),  // net  1,723.59
-            (11,  5_205.61,  3_643.24),  // net  1,562.37
+            (11,  5_444.85,  3_776.07),  // net  1,668.78  swapped ↔ Dec 14
             (12,  6_147.39,  4_251.59),  // net  1,895.80
-            (13,  4_438.96,  3_288.09),  // net  1,150.87
-            (14,  5_444.85,  3_776.07),  // net  1,668.78
-            (15,  4_825.51,  2_990.38),  // net  1,835.13  (today, partial)
+            (13,  4_825.51,  2_990.38),  // net  1,835.13  swapped ↔ Dec 15
+            (14,  5_205.61,  3_643.24),  // net  1,562.37  swapped ↔ Dec 11
+            (15,  4_438.96,  3_288.09),  // net  1,150.87  swapped ↔ Dec 13  (today, partial)
         ]
         let byDay = Dictionary(uniqueKeysWithValues: active.map {
             ($0.0, DailyFinancial(id: $0.0, revenue: $0.1, expenses: $0.2))
@@ -904,6 +933,40 @@ enum AppFinancials {
                            overrides: [UUID: String] = [:]) -> [DailyFinancial] {
         guard year >= minYear else { return [] }
         return dailyDataFromTransactions(year: year, month: month, overrides: overrides)
+    }
+
+    /// Distributes a single day's revenue and expenses across 24 hourly slots using
+    /// a retail-realistic weight pattern (peak activity 10 am – 9 pm, morning delivery
+    /// expenses starting at 5 am).  Returns an array of 24 `(revenue, expenses)` tuples
+    /// indexed by hour 0 (midnight) … 23.
+    static func hourlyData(year: Int, month: Int, day: Int,
+                           overrides: [UUID: String] = [:]) -> [(revenue: Double, expenses: Double)] {
+        let daily = dailyData(year: year, month: month, overrides: overrides)
+        guard let data = daily.first(where: { $0.id == day }), !data.isFuture else {
+            return Array(repeating: (0, 0), count: 24)
+        }
+
+        // Revenue weights: store closed midnight–9 am, peaks at lunch and late-afternoon.
+        let revW: [Double] = [
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 1,   // 12 am – 9 am
+            2, 5, 8, 7, 5, 4, 6, 8, 7, 5,   // 10 am – 7 pm
+            4, 2, 1, 0                        // 8 pm – 11 pm
+        ]
+
+        // Expense weights: early deliveries 5–7 am, operational through business hours.
+        let expW: [Double] = [
+            0, 0, 0, 0, 0, 1, 2, 3, 3, 4,   // 12 am – 9 am
+            5, 6, 6, 5, 5, 5, 5, 5, 4, 4,   // 10 am – 7 pm
+            3, 2, 1, 0                        // 8 pm – 11 pm
+        ]
+
+        let revSum = revW.reduce(0, +)
+        let expSum = expW.reduce(0, +)
+        return (0..<24).map { h in
+            let rev = revSum > 0 ? data.revenue  * revW[h] / revSum : 0
+            let exp = expSum > 0 ? data.expenses * expW[h] / expSum : 0
+            return (revenue: rev, expenses: exp)
+        }
     }
 
     /// Aggregates per-day revenue and expense amounts from the sample transactions,

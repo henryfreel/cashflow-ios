@@ -100,11 +100,20 @@ extension Color {
 //   barRevSecondary — lighter green: background tint on the non-category portion
 //   barExpPrimary   — darker red:  category segment, net-profit overlay, indicator dot
 //   barExpSecondary — lighter red:  background tint on the non-category portion
+//   barNeutral      — inactive bar light fill (at rest on P&L chart, non-hovered during scrub)
+//   barDim          — inactive bar dark fill (non-hovered bars during scrub)
 extension Color {
     static let barRevPrimary:   Color = .green3  // #00B23B  darker — overlay / category
     static let barRevSecondary: Color = .green7  // #E6FFEA  lighter — background tint
     static let barExpPrimary:   Color = .red3    // #CC0023  darker — overlay / category
     static let barExpSecondary: Color = .red7    // #FFE5EA  lighter — background tint
+    static let barNeutral:      Color = .gray6   // #F0F0F0  inactive light fill
+    static let barDim:          Color = .gray5   // #DEDEDE  inactive dark fill
+
+    // Status-dot only — slightly deeper than the bar background tints so the
+    // 12pt dots are clearly visible.  Do not use these for bar segments or chips.
+    static let dotRevLight: Color = Color(red: 194/255, green: 255/255, blue: 204/255) // #C2FFCC
+    static let dotExpLight: Color = Color(red: 255/255, green: 202/255, blue: 212/255) // #FFCAD4
 }
 
 // MARK: - Device Corner Radius

@@ -17,6 +17,7 @@ struct TransactionsView: View {
 
     @State private var isSearching:  Bool   = false
     @State private var searchText:   String = ""
+    @State private var searchRefocusTrigger: Int = 0
 
     @State private var visibleCount: Int  = 15
     @State private var isScrolled:   Bool = false
@@ -278,6 +279,34 @@ struct TransactionsView: View {
             return (cal.startOfDay(for: s), min(cal.startOfDay(for: e), horizon))
         }
 
+        // "December 15, 2024" — single day (Day period)
+        fmt.dateFormat = "MMMM d, yyyy"
+        if let d = fmt.date(from: label) {
+            let dayStart = cal.startOfDay(for: d)
+            return (dayStart, min(dayStart, horizon))
+        }
+
+        // "Dec 9 – Dec 15, 2024" — week range
+        if label.contains(" – ") {
+            let rangeParts = label.components(separatedBy: " – ")
+            if rangeParts.count == 2 {
+                let endPart   = rangeParts[1]                           // "Dec 15, 2024"
+                let startRaw  = rangeParts[0]                           // "Dec 9"
+                let endComps  = endPart.components(separatedBy: ",")
+                if endComps.count == 2,
+                   let year = Int(endComps[1].trimmingCharacters(in: .whitespaces)) {
+                    fmt.dateFormat = "MMM d yyyy"
+                    let endClean   = endComps[0].trimmingCharacters(in: .whitespaces)
+                    let startClean = startRaw.trimmingCharacters(in: .whitespaces)
+                    if let startDate = fmt.date(from: "\(startClean) \(year)"),
+                       let endDate   = fmt.date(from: "\(endClean) \(year)") {
+                        return (cal.startOfDay(for: startDate),
+                                min(cal.startOfDay(for: endDate), horizon))
+                    }
+                }
+            }
+        }
+
         // "2024" or "Jan – Dec, 2024"
         let yearStr = label.contains(",")
             ? (label.components(separatedBy: ",").last?.trimmingCharacters(in: .whitespaces) ?? "")
@@ -339,6 +368,10 @@ struct TransactionsView: View {
                     selectedCategories = []
                     visibleCount       = 15
                     navState.txAllFiltersSheetPresented = false
+                    // If the search bar was open when All Filters was tapped, the
+                    // keyboard was dismissed to make room for the sheet. Re-focus it
+                    // now so the user can keep typing without a second tap.
+                    if isSearching { searchRefocusTrigger += 1 }
                 },
                 onDone: { navState.txAllFiltersSheetPresented = false },
                 onCommitFilter: { filter, newKeys in
@@ -361,14 +394,19 @@ struct TransactionsView: View {
     /// Stores date-sheet parameters on navState so ContentView can render
     /// TxDateSheet directly as a concrete type (avoiding AnyView identity loss).
     private func presentDatePicker() {
-        navState.txDatePickerInitialStart = selectedStartDate
-        navState.txDatePickerInitialEnd   = selectedEndDate
+        navState.txDatePickerInitialStart        = selectedStartDate
+        navState.txDatePickerInitialEnd          = selectedEndDate
+        navState.txDatePickerInitialPreset       = nil
+        navState.txDatePickerPLMode              = false
+        navState.txDatePickerCurrentPeriodPreset = nil
+        navState.txDatePickerOnGoToCurrent       = nil
         navState.txDatePickerOnCommit     = { [navState] start, end in
             selectedStartDate = start
             selectedEndDate   = end
             visibleCount      = 15
             _ = navState  // capture to silence warning
         }
+        navState.txDatePickerOnCommitPreset = nil
         navState.txDatePickerOnDone    = { navState.txDatePickerPresented = false }
         navState.txDatePickerHeight    = TxDateSheet.compactHeight
         navState.txDatePickerPresented = true
@@ -401,8 +439,9 @@ struct TransactionsView: View {
                 onTapCashflow:   { presentFilterSheet(.cashflow)  },
                 onTapCategory:   { presentFilterSheet(.category)  },
                 onTapAllFilters: { presentAllFiltersSheet()        },
-                isSearching:     $isSearching,
-                searchText:      $searchText
+                isSearching:          $isSearching,
+                searchText:           $searchText,
+                searchRefocusTrigger: searchRefocusTrigger
             )
             .padding(.top, 8)
 
@@ -410,10 +449,35 @@ struct TransactionsView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 0) {
                         Color.clear.frame(height: 0).id("txListTop")
-                        TxPagedList(allItems: displayItems,
-                                    visibleCount: $visibleCount,
-                                    showLocation: showLocation,
-                                    onSelectTx: { selectedTransaction = $0 })
+                        if displayItems.isEmpty {
+                            VStack(spacing: 8) {
+                                Image("no-data")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 64, height: 64)
+                                VStack(spacing: 0) {
+                                    Text("No data available")
+                                        .font(.custom(AppFont.Text.semiBold, size: 18))
+                                        .foregroundStyle(Color(red: 16/255, green: 16/255, blue: 16/255))
+                                        .frame(maxWidth: 254)
+                                        .multilineTextAlignment(.center)
+                                        .lineSpacing(26 - 18)
+                                    Text("Try adjusting the date range")
+                                        .font(.custom(AppFont.Text.regular, size: 14))
+                                        .foregroundStyle(Color.gray3)
+                                        .frame(maxWidth: 254)
+                                        .multilineTextAlignment(.center)
+                                        .lineSpacing(22 - 14)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 200)
+                        } else {
+                            TxPagedList(allItems: displayItems,
+                                        visibleCount: $visibleCount,
+                                        showLocation: showLocation,
+                                        onSelectTx: { selectedTransaction = $0 })
+                        }
                     }
                 }
                 .scrollDismissesKeyboard(.immediately)

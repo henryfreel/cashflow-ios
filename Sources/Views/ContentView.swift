@@ -39,6 +39,13 @@ final class AppNavigationState {
     var txDatePickerOnCommit: ((Date?, Date?) -> Void)? = nil
     var txDatePickerOnCommitPreset: ((DatePreset?) -> Void)? = nil
     var txDatePickerOnDone: (() -> Void)? = nil
+    /// When true, the date sheet shows P&L mode: only Month/Quarter/Year presets,
+    /// icon "go to current" button instead of Done, and auto-dismisses on selection.
+    var txDatePickerPLMode: Bool = false
+    var txDatePickerCurrentPeriodPreset: DatePreset? = nil
+    /// Called when the calendar-today icon is tapped in P&L mode; navigates to the
+    /// actual current period (today, this week, etc.) and dismisses.
+    var txDatePickerOnGoToCurrent: (() -> Void)? = nil
 
     /// All-filters summary sheet
     var txAllFiltersSheetPresented: Bool = false
@@ -55,6 +62,22 @@ final class AppNavigationState {
     var globalStartDate: Date? = Calendar.current.date(from: DateComponents(year: 2024, month: 1, day: 1))
     var globalEndDate:   Date? = Calendar.current.date(from: DateComponents(year: 2024, month: 12, day: 15))
     var globalLocations: Set<String> = []
+
+    // Period state shared across the P&L, Revenue, and Expenses pages.
+    // Written by every page on each period/location change; the P&L parent
+    // reads these on re-appear so it stays in sync when popping back from a child.
+    var plPeriod:    String = "Year"
+    var plYear:      Int    = AppFinancials.currentYear
+    var plQuarter:   Int    = AppFinancials.currentQuarter
+    var plMonth:     Int    = AppFinancials.currentMonth
+    var plDay:       Int    = AppFinancials.currentDay
+    var plWeekStart: Date   = {
+        let cal = Calendar.current
+        let today = cal.date(from: DateComponents(year: 2024, month: 12, day: 15))!
+        let weekday = cal.component(.weekday, from: today)
+        let daysBack = weekday == 1 ? 6 : weekday - 2
+        return cal.date(byAdding: .day, value: -daysBack, to: today)!
+    }()
 }
 
 // MARK: -
@@ -104,13 +127,16 @@ struct ContentView: View {
                 if let onCommit = navState.txDatePickerOnCommit,
                    let onDone   = navState.txDatePickerOnDone {
                     TxDateSheet(
-                        initialStart:   navState.txDatePickerInitialStart,
-                        initialEnd:     navState.txDatePickerInitialEnd,
-                        onCommit:       onCommit,
-                        onDone:         onDone,
-                        onHeightChange: { navState.txDatePickerHeight = $0 },
-                        initialPreset:  navState.txDatePickerInitialPreset,
-                        onCommitPreset: navState.txDatePickerOnCommitPreset
+                        initialStart:        navState.txDatePickerInitialStart,
+                        initialEnd:          navState.txDatePickerInitialEnd,
+                        onCommit:            onCommit,
+                        onDone:              onDone,
+                        onHeightChange:      { navState.txDatePickerHeight = $0 },
+                        initialPreset:       navState.txDatePickerInitialPreset,
+                        onCommitPreset:      navState.txDatePickerOnCommitPreset,
+                        plMode:              navState.txDatePickerPLMode,
+                        currentPeriodPreset: navState.txDatePickerCurrentPeriodPreset,
+                        onGoToCurrent:       navState.txDatePickerOnGoToCurrent
                     )
                 }
             }
@@ -217,7 +243,7 @@ struct TopNavigationBar: View {
                         .fill(Color.blue3)
                         .frame(width: 14, height: 14)
                     Text("1")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.paragraphSemibold9)
                         .foregroundStyle(Color.white)
                 }
                 .offset(x: 4, y: -4)
@@ -287,7 +313,8 @@ private struct BottomTabBar: View {
 
             HStack(spacing: 0) {
                 Spacer(minLength: 0)
-                TabItem(icon: "TabHome", label: "Home", isSelected: selectedTab == .home) { onTap(.home) }
+                TabItem(icon: "TabHome", label: "Home", isSelected: selectedTab == .home,
+                        notificationCount: 1) { onTap(.home) }
                 Spacer(minLength: 0)
                 TabItem(icon: "TabBanking", label: "Banking",
                         isSelected: false) {}
@@ -318,16 +345,36 @@ private struct TabItem: View {
     let icon: String
     let label: String
     let isSelected: Bool
+    var notificationCount: Int = 0
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             VStack(spacing: 4) {
-                Image(icon)
-                    .resizable()
-                    .renderingMode(.template)
-                    .scaledToFit()
-                    .frame(width: 24, height: 24)
+                ZStack(alignment: .topTrailing) {
+                    Image(icon)
+                        .resizable()
+                        .renderingMode(.template)
+                        .scaledToFit()
+                        .frame(width: 24, height: 24)
+
+                    if notificationCount > 0 {
+                        ZStack {
+                            // Outer circle acts as the border; color matches pill background
+                            // when selected (gray6) so it blends in, white otherwise.
+                            Circle()
+                                .fill(isSelected ? Color.gray6 : Color.white)
+                                .frame(width: 20, height: 20)
+                            Circle()
+                                .fill(Color.blue3)
+                                .frame(width: 16, height: 16)
+                            Text("\(notificationCount)")
+                                .font(.paragraphSemibold9)
+                                .foregroundStyle(Color.white)
+                        }
+                        .offset(x: 8, y: -4)
+                    }
+                }
 
                 Text(label)
                     .font(.paragraphSemibold9)

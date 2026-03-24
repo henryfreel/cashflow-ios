@@ -45,15 +45,17 @@ struct ProfitLossDetailView: View {
 
     // MARK: Period selection & navigation state
 
-    // Selected segment: "Year", "Quarter", or "Month".
+    // Selected segment: "Year", "Quarter", "Month", "Week", or "Day".
     @State private var selectedPeriod: String
     /// Tracks which donut segment is selected on Revenue / Expenses pages.
     @State private var selectedDonutIndex: Int = 0
-    // Swipe navigates between full periods — year, quarter, or month.
+    // Swipe navigates between full periods — year, quarter, month, week, or day.
     // Prototype context: Dec 15, 2024 — default to current year/quarter/month.
-    @State private var selectedYear:    Int
-    @State private var selectedQuarter: Int
-    @State private var selectedMonth:   Int
+    @State private var selectedYear:      Int
+    @State private var selectedQuarter:   Int
+    @State private var selectedMonth:     Int
+    @State private var selectedDay:       Int
+    @State private var selectedWeekStart: Date
 
     /// Seeds the view with the period already visible on the Home card so the
     /// bar chart opens on exactly the right month / quarter / year.
@@ -70,7 +72,9 @@ struct ProfitLossDetailView: View {
         initialPeriod:   String  = "Year",
         initialYear:     Int     = AppFinancials.currentYear,
         initialQuarter:  Int     = AppFinancials.currentQuarter,
-        initialMonth:    Int     = AppFinancials.currentMonth
+        initialMonth:    Int     = AppFinancials.currentMonth,
+        initialDay:      Int?    = nil,
+        initialWeekStart: Date?  = nil
     ) {
         self.pageTitle = pageTitle
         self.showRevenueExpensesCard = showRevenueExpensesCard
@@ -78,11 +82,34 @@ struct ProfitLossDetailView: View {
         _selectedYear    = State(initialValue: initialYear)
         _selectedQuarter = State(initialValue: initialQuarter)
         _selectedMonth   = State(initialValue: initialMonth)
+        _selectedDay     = State(initialValue: initialDay ?? AppFinancials.currentDay)
+        let cal      = Calendar.current
+        let appToday = cal.date(from: DateComponents(year: 2024, month: 12, day: 15))!
+        if let ws = initialWeekStart {
+            _selectedWeekStart = State(initialValue: ws)
+        } else {
+            let weekday  = cal.component(.weekday, from: appToday)
+            let daysBack = weekday == 1 ? 6 : weekday - 2
+            _selectedWeekStart = State(initialValue: cal.date(byAdding: .day, value: -daysBack, to: appToday)!)
+        }
+    }
+
+    // MARK: Week-start helper
+
+    private static func mondayOf(date: Date) -> Date {
+        let cal     = Calendar.current
+        let weekday = cal.component(.weekday, from: date) // 1=Sun
+        let daysBack = weekday == 1 ? 6 : weekday - 2
+        return cal.date(byAdding: .day, value: -daysBack, to: cal.startOfDay(for: date))!
     }
 
     // Navigation state for drilling into Revenue / Expenses detail pages.
     @State private var showRevenueDetail  = false
     @State private var showExpensesDetail = false
+    // Tracks whether the view has appeared at least once; used to distinguish
+    // the initial appearance (where init params apply) from a re-appear after
+    // popping back from a Revenue / Expenses child page.
+    @State private var hasAppeared = false
     // Direction of last navigation (true = forward / left-swipe = newer period).
     @State private var slideLeft: Bool = true
     // Incremented on every swipe/chevron navigation. The metrics container is keyed
@@ -188,26 +215,39 @@ struct ProfitLossDetailView: View {
     private var hasDataForPeriod: Bool { selectedYear >= AppFinancials.minYear }
 
     private var currentEntries: [BarChartEntry] {
+        let cal      = Calendar.current
+        let wdNames  = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
+        let fmtMd: DateFormatter = { let f = DateFormatter(); f.locale = Locale(identifier: "en_US"); f.dateFormat = "MMM d"; return f }()
+
         guard hasDataForPeriod else {
             // Placeholder bars when navigating beyond data (e.g. 2022)
             switch selectedPeriod {
             case "Quarter": return (0..<13).map { BarChartEntry(id: $0, label: "\($0 + 1)", fullLabel: "Week \($0 + 1)", revenue: 0, expenses: 0) }
             case "Month":
                 let comps = DateComponents(year: selectedYear, month: selectedMonth)
-                let date = Calendar.current.date(from: comps) ?? Date()
-                let days = Calendar.current.range(of: .day, in: .month, for: date)?.count ?? 31
+                let date = cal.date(from: comps) ?? Date()
+                let days = cal.range(of: .day, in: .month, for: date)?.count ?? 31
                 let abbrev = Self.monthAbbrevs[selectedMonth - 1]
                 return (0..<days).map { i in
                     let day = i + 1
                     let dc = DateComponents(year: selectedYear, month: selectedMonth, day: day)
                     let wdAbbrev: String
-                    if let d = Calendar.current.date(from: dc) {
-                        let idx = Calendar.current.component(.weekday, from: d) - 1
-                        wdAbbrev = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][idx]
+                    if let d = cal.date(from: dc) {
+                        wdAbbrev = wdNames[cal.component(.weekday, from: d) - 1]
                     } else { wdAbbrev = "" }
                     let fl = wdAbbrev.isEmpty ? "\(abbrev) \(day)" : "\(wdAbbrev), \(abbrev) \(day)"
                     return BarChartEntry(id: i, label: "\(day)", fullLabel: fl, revenue: 0, expenses: 0)
                 }
+            case "Week":
+                return (0..<7).map { i in
+                    guard let date = cal.date(byAdding: .day, value: i, to: selectedWeekStart) else {
+                        return BarChartEntry(id: i, label: "–", fullLabel: "–", revenue: 0, expenses: 0)
+                    }
+                    let abbrev = wdNames[cal.component(.weekday, from: date) - 1]
+                    return BarChartEntry(id: i, label: String(abbrev.prefix(1)), fullLabel: abbrev, revenue: 0, expenses: 0)
+                }
+            case "Day":
+                return [BarChartEntry(id: 0, label: "", fullLabel: "", revenue: 0, expenses: 0)]
             default: return (0..<12).map { BarChartEntry(id: $0, label: Self.monthChars[$0], fullLabel: Self.monthNames[$0], revenue: 0, expenses: 0) }
             }
         }
@@ -234,9 +274,8 @@ struct ProfitLossDetailView: View {
                                             overrides: overrides).map { d in
                 let dc = DateComponents(year: selectedYear, month: selectedMonth, day: d.id)
                 let wdAbbrev: String
-                if let date = Calendar.current.date(from: dc) {
-                    let idx = Calendar.current.component(.weekday, from: date) - 1
-                    wdAbbrev = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][idx]
+                if let date = cal.date(from: dc) {
+                    wdAbbrev = wdNames[cal.component(.weekday, from: date) - 1]
                 } else { wdAbbrev = "" }
                 let fl = wdAbbrev.isEmpty ? "\(abbrev) \(d.id)" : "\(wdAbbrev), \(abbrev) \(d.id)"
                 return BarChartEntry(id: d.id - 1, label: "\(d.id)",
@@ -244,6 +283,45 @@ struct ProfitLossDetailView: View {
                               revenue: d.revenue, expenses: d.expenses,
                               isCurrent: isCurrentPeriod && d.id == AppFinancials.currentDay,
                               isFuture: d.isFuture)
+            }
+        case "Week":
+            let appToday = cal.date(from: DateComponents(year: 2024, month: 12, day: 15))!
+            return (0..<7).compactMap { i -> BarChartEntry? in
+                guard let date = cal.date(byAdding: .day, value: i, to: selectedWeekStart) else { return nil }
+                let y = cal.component(.year,  from: date)
+                let m = cal.component(.month, from: date)
+                let d = cal.component(.day,   from: date)
+                let entries = AppFinancials.dailyData(year: y, month: m, overrides: overrides)
+                let entry   = entries.first(where: { $0.id == d })
+                let abbrev  = wdNames[cal.component(.weekday, from: date) - 1]
+                return BarChartEntry(
+                    id: i, label: String(abbrev.prefix(1)), fullLabel: fmtMd.string(from: date),
+                    revenue: entry?.revenue ?? 0, expenses: entry?.expenses ?? 0,
+                    isCurrent: cal.isDate(date, inSameDayAs: appToday),
+                    isFuture:  entry?.isFuture ?? (date > appToday)
+                )
+            }
+        case "Day":
+            let appToday = cal.date(from: DateComponents(year: 2024, month: 12, day: 15))!
+            let dc = DateComponents(year: selectedYear, month: selectedMonth, day: selectedDay)
+            let isDayFuture = cal.date(from: dc).map { $0 > appToday } ?? false
+            let hourly = AppFinancials.hourlyData(year: selectedYear, month: selectedMonth,
+                                                  day: selectedDay, overrides: overrides)
+            func fmtHour(_ h: Int) -> String {
+                if h == 0  { return "12:00am" }
+                if h < 12  { return "\(h):00am" }
+                if h == 12 { return "12:00pm" }
+                return "\(h - 12):00pm"
+            }
+            return (0..<24).map { h in
+                // All hours carry an "a"/"p" suffix so the active scrub label
+                // always reads correctly, even for odd hours normally hidden.
+                let num = (h == 0 || h == 12) ? "12" : "\(h % 12)"
+                let label = "\(num)\(h < 12 ? "a" : "p")"
+                let fullLabel = "\(fmtHour(h)) – \(fmtHour((h + 1) % 24))"
+                return BarChartEntry(id: h, label: label, fullLabel: fullLabel,
+                                     revenue: hourly[h].revenue, expenses: hourly[h].expenses,
+                                     isCurrent: false, isFuture: isDayFuture)
             }
         default: // "Year"
             let months = AppFinancials.monthlyData(year: selectedYear, overrides: overrides)
@@ -257,28 +335,52 @@ struct ProfitLossDetailView: View {
     }
 
     private var prevYearEntries: [BarChartEntry] {
+        let cal  = Calendar.current
         let prev = selectedYear - 1
-        guard prev >= AppFinancials.minYear else { return [] }
         switch selectedPeriod {
-        case "Quarter":
-            return AppFinancials.weeklyData(year: prev, quarter: selectedQuarter,
-                                             overrides: overrides).map { w in
-                let label = w.dateRange.isEmpty ? "Week \(w.id + 1)" : w.dateRange
-                return BarChartEntry(id: w.id, label: "\(w.id + 1)", fullLabel: label,
-                                     revenue: w.revenue, expenses: w.expenses)
+        case "Week":
+            guard let prevWeekStart = cal.date(byAdding: .year, value: -1, to: selectedWeekStart),
+                  cal.component(.year, from: prevWeekStart) >= AppFinancials.minYear else { return [] }
+            return (0..<7).compactMap { i -> BarChartEntry? in
+                guard let date = cal.date(byAdding: .day, value: i, to: prevWeekStart) else { return nil }
+                let y = cal.component(.year,  from: date)
+                let m = cal.component(.month, from: date)
+                let d = cal.component(.day,   from: date)
+                let entry = AppFinancials.dailyData(year: y, month: m, overrides: overrides).first(where: { $0.id == d })
+                return BarChartEntry(id: i, label: "", fullLabel: "",
+                                     revenue: entry?.revenue ?? 0, expenses: entry?.expenses ?? 0)
             }
-        case "Month":
-            let abbrev = Self.monthAbbrevs[selectedMonth - 1]
-            return AppFinancials.dailyData(year: prev, month: selectedMonth,
-                                            overrides: overrides).map { d in
-                BarChartEntry(id: d.id - 1, label: "\(d.id)",
-                              fullLabel: "\(abbrev) \(d.id)",
-                              revenue: d.revenue, expenses: d.expenses)
+        case "Day":
+            guard prev >= AppFinancials.minYear else { return [] }
+            let hourly = AppFinancials.hourlyData(year: prev, month: selectedMonth,
+                                                  day: selectedDay, overrides: overrides)
+            return (0..<24).map { h in
+                BarChartEntry(id: h, label: "", fullLabel: "",
+                              revenue: hourly[h].revenue, expenses: hourly[h].expenses)
             }
-        default: // "Year"
-            return AppFinancials.monthlyData(year: prev, overrides: overrides).map {
-                BarChartEntry(id: $0.id, label: $0.month, fullLabel: $0.fullMonth,
-                              revenue: $0.revenue, expenses: $0.expenses)
+        default:
+            guard prev >= AppFinancials.minYear else { return [] }
+            switch selectedPeriod {
+            case "Quarter":
+                return AppFinancials.weeklyData(year: prev, quarter: selectedQuarter,
+                                                 overrides: overrides).map { w in
+                    let label = w.dateRange.isEmpty ? "Week \(w.id + 1)" : w.dateRange
+                    return BarChartEntry(id: w.id, label: "\(w.id + 1)", fullLabel: label,
+                                         revenue: w.revenue, expenses: w.expenses)
+                }
+            case "Month":
+                let abbrev = Self.monthAbbrevs[selectedMonth - 1]
+                return AppFinancials.dailyData(year: prev, month: selectedMonth,
+                                                overrides: overrides).map { d in
+                    BarChartEntry(id: d.id - 1, label: "\(d.id)",
+                                  fullLabel: "\(abbrev) \(d.id)",
+                                  revenue: d.revenue, expenses: d.expenses)
+                }
+            default: // "Year"
+                return AppFinancials.monthlyData(year: prev, overrides: overrides).map {
+                    BarChartEntry(id: $0.id, label: $0.month, fullLabel: $0.fullMonth,
+                                  revenue: $0.revenue, expenses: $0.expenses)
+                }
             }
         }
     }
@@ -312,20 +414,36 @@ struct ProfitLossDetailView: View {
     private var scrubLabel: String? {
         guard let si = scrubIndex, si < currentEntries.count else { return nil }
         let entry = currentEntries[si]
+        let cal   = Calendar.current
         switch selectedPeriod {
         case "Month":
-            // "Wed, Jan 1" — weekday abbreviation, month abbreviation, day number
-            let day = entry.id + 1   // entry.id is 0-based; day number is 1-based
+            let day = entry.id + 1
             let comps = DateComponents(year: selectedYear, month: selectedMonth, day: day)
-            if let date = Calendar.current.date(from: comps) {
-                let wdIdx = Calendar.current.component(.weekday, from: date) - 1  // 0 = Sun
-                let wd = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][wdIdx]
+            if let date = cal.date(from: comps) {
+                let wdIdx = cal.component(.weekday, from: date) - 1
+                let wd = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][wdIdx]
                 return "\(wd), \(Self.monthAbbrevs[selectedMonth - 1]) \(day)"
             }
             return "\(Self.monthAbbrevs[selectedMonth - 1]) \(day)"
         case "Quarter":
-            // Replace en dash with hyphen for compact list-row titles
             return entry.fullLabel.replacingOccurrences(of: "-", with: "-")
+        case "Week":
+            if let date = cal.date(byAdding: .day, value: si, to: selectedWeekStart) {
+                let fmt = DateFormatter()
+                fmt.locale = Locale(identifier: "en_US")
+                fmt.dateFormat = "EEE, MMM d"
+                return fmt.string(from: date)
+            }
+            return entry.fullLabel
+        case "Day":
+            guard let si = scrubIndex else { return nil }
+            func fmtHour(_ h: Int) -> String {
+                if h == 0  { return "12:00am" }
+                if h < 12  { return "\(h):00am" }
+                if h == 12 { return "12:00pm" }
+                return "\(h - 12):00pm"
+            }
+            return "\(fmtHour(si)) – \(fmtHour((si + 1) % 24))"
         default: // Year
             return entry.fullLabel
         }
@@ -364,11 +482,23 @@ struct ProfitLossDetailView: View {
     // MARK: Period nav header
 
     private var periodNavTitle: String {
+        let cal = Calendar.current
         switch selectedPeriod {
         case "Quarter":
             return "Q\(selectedQuarter) \(selectedYear)"
         case "Month":
             return "\(Self.monthNames[selectedMonth - 1]) \(selectedYear)"
+        case "Week":
+            let endDate = cal.date(byAdding: .day, value: 6, to: selectedWeekStart)!
+            let fmt = DateFormatter(); fmt.locale = Locale(identifier: "en_US"); fmt.dateFormat = "MMM d"
+            return "\(fmt.string(from: selectedWeekStart)) – \(fmt.string(from: endDate)), \(cal.component(.year, from: selectedWeekStart))"
+        case "Day":
+            let dc = DateComponents(year: selectedYear, month: selectedMonth, day: selectedDay)
+            if let date = cal.date(from: dc) {
+                let fmt = DateFormatter(); fmt.locale = Locale(identifier: "en_US"); fmt.dateFormat = "MMMM d, yyyy"
+                return fmt.string(from: date)
+            }
+            return "\(Self.monthNames[selectedMonth - 1]) \(selectedDay), \(selectedYear)"
         default: // "Year"
             return "Jan – Dec, \(selectedYear)"
         }
@@ -382,20 +512,34 @@ struct ProfitLossDetailView: View {
 
     /// Allow one period beyond data boundary (e.g. 2022 when minYear is 2023).
     private var canGoBack: Bool {
+        let cal          = Calendar.current
         let oneBeforeMin = AppFinancials.minYear - 1
+        let minDate      = cal.date(from: DateComponents(year: oneBeforeMin, month: 1, day: 1))!
         switch selectedPeriod {
         case "Quarter": return selectedQuarter > 1 || (selectedQuarter == 1 && selectedYear > oneBeforeMin)
         case "Month":   return selectedMonth > 1 || (selectedMonth == 1 && selectedYear > oneBeforeMin)
         case "Year":    return selectedYear > oneBeforeMin
+        case "Week":    return selectedWeekStart > minDate
+        case "Day":
+            let dc = DateComponents(year: selectedYear, month: selectedMonth, day: selectedDay)
+            return cal.date(from: dc).map { $0 > minDate } ?? false
         default:        return false
         }
     }
 
     private var canGoForward: Bool {
+        let cal      = Calendar.current
+        let appToday = cal.date(from: DateComponents(year: 2024, month: 12, day: 15))!
         switch selectedPeriod {
         case "Quarter": return selectedYear < AppFinancials.currentYear || (selectedYear == AppFinancials.currentYear && selectedQuarter < AppFinancials.currentQuarter)
         case "Month":   return selectedYear < AppFinancials.currentYear || (selectedYear == AppFinancials.currentYear && selectedMonth < AppFinancials.currentMonth)
         case "Year":    return selectedYear < AppFinancials.currentYear
+        case "Week":
+            let weekEnd = cal.date(byAdding: .day, value: 6, to: selectedWeekStart)!
+            return weekEnd < appToday
+        case "Day":
+            let dc = DateComponents(year: selectedYear, month: selectedMonth, day: selectedDay)
+            return cal.date(from: dc).map { $0 < appToday } ?? false
         default:        return false
         }
     }
@@ -411,6 +555,7 @@ struct ProfitLossDetailView: View {
         // effectively a no-op for them.
         Task { @MainActor in
             withAnimation(animation) {
+                let cal = Calendar.current
                 metricsNavCounter += 1
                 switch selectedPeriod {
                 case "Quarter":
@@ -420,6 +565,19 @@ struct ProfitLossDetailView: View {
                     if selectedMonth > 1 { selectedMonth -= 1 }
                     else { selectedYear -= 1; selectedMonth = 12 }
                 case "Year": selectedYear -= 1
+                case "Week":
+                    if let prev = cal.date(byAdding: .day, value: -7, to: selectedWeekStart) {
+                        selectedWeekStart = prev
+                        selectedYear  = cal.component(.year,  from: prev)
+                        selectedMonth = cal.component(.month, from: prev)
+                    }
+                case "Day":
+                    let dc = DateComponents(year: selectedYear, month: selectedMonth, day: selectedDay)
+                    if let d = cal.date(from: dc), let prev = cal.date(byAdding: .day, value: -1, to: d) {
+                        selectedYear  = cal.component(.year,  from: prev)
+                        selectedMonth = cal.component(.month, from: prev)
+                        selectedDay   = cal.component(.day,   from: prev)
+                    }
                 default: break
                 }
             }
@@ -432,6 +590,7 @@ struct ProfitLossDetailView: View {
         slideLeft = true
         Task { @MainActor in
             withAnimation(animation) {
+                let cal = Calendar.current
                 metricsNavCounter += 1
                 switch selectedPeriod {
                 case "Quarter":
@@ -441,6 +600,19 @@ struct ProfitLossDetailView: View {
                     if selectedMonth < 12 { selectedMonth += 1 }
                     else { selectedYear += 1; selectedMonth = 1 }
                 case "Year": selectedYear += 1
+                case "Week":
+                    if let next = cal.date(byAdding: .day, value: 7, to: selectedWeekStart) {
+                        selectedWeekStart = next
+                        selectedYear  = cal.component(.year,  from: next)
+                        selectedMonth = cal.component(.month, from: next)
+                    }
+                case "Day":
+                    let dc = DateComponents(year: selectedYear, month: selectedMonth, day: selectedDay)
+                    if let d = cal.date(from: dc), let next = cal.date(byAdding: .day, value: 1, to: d) {
+                        selectedYear  = cal.component(.year,  from: next)
+                        selectedMonth = cal.component(.month, from: next)
+                        selectedDay   = cal.component(.day,   from: next)
+                    }
                 default: break
                 }
             }
@@ -452,6 +624,8 @@ struct ProfitLossDetailView: View {
     private var viewAllRangeLabel: String {
         switch selectedPeriod {
         case "Month": return Self.monthNames[selectedMonth - 1]
+        case "Day":
+            return "\(Self.monthAbbrevs[selectedMonth - 1]) \(selectedDay)"
         default:      return periodNavTitle
         }
     }
@@ -469,12 +643,30 @@ struct ProfitLossDetailView: View {
 
     /// Raw transactions for the current period, filtered to the page context.
     private var transactionsForPeriod: [Transaction] {
+        let cal = Calendar.current
         let raw: [Transaction]
         switch selectedPeriod {
         case "Month":
             raw = AppFinancials.sampleTransactions(year: selectedYear, month: selectedMonth)
         case "Quarter":
             raw = AppFinancials.sampleTransactions(year: selectedYear, quarter: selectedQuarter)
+        case "Day":
+            let dc = DateComponents(year: selectedYear, month: selectedMonth, day: selectedDay)
+            if let dayDate = cal.date(from: dc) {
+                raw = AppFinancials.sampleTransactions(year: selectedYear, month: selectedMonth)
+                    .filter { cal.isDate($0.date, inSameDayAs: dayDate) }
+            } else { raw = [] }
+        case "Week":
+            var weekTx: [Transaction] = []
+            for i in 0..<7 {
+                if let date = cal.date(byAdding: .day, value: i, to: selectedWeekStart) {
+                    let y = cal.component(.year,  from: date)
+                    let m = cal.component(.month, from: date)
+                    weekTx += AppFinancials.sampleTransactions(year: y, month: m)
+                        .filter { cal.isDate($0.date, inSameDayAs: date) }
+                }
+            }
+            raw = weekTx
         default: // "Year"
             raw = AppFinancials.sampleTransactions(year: selectedYear)
         }
@@ -565,9 +757,15 @@ struct ProfitLossDetailView: View {
     /// Shows the period-scoped value (responds to bar-chart scrubbing) and a
     /// YoY % badge — no status-dot indicator.
     private var netProfitHeroRow: some View {
-        let isScrubbing = scrubIndex != nil
-        let value   = isScrubbing ? scrubNetProfit   : periodNetProfit
-        let yoyPct  = isScrubbing ? scrubNetYoyPct   : periodNetYoyPct
+        let isScrubbing     = scrubIndex != nil
+        let scrubBarHasData = scrubIndex.map { $0 < currentEntries.count && !currentEntries[$0].isFuture } ?? false
+        let isFutureScrub   = isScrubbing && !scrubBarHasData
+        let hasPrev: Bool   = isScrubbing && !isFutureScrub
+            ? (scrubIndex ?? 0) < prevYearEntries.count && prevYearEntries[scrubIndex ?? 0].hasData
+            : (!isScrubbing && selectedYear > AppFinancials.minYear)
+        let value   = isScrubbing ? scrubNetProfit : periodNetProfit
+        let rawYoy  = isScrubbing ? scrubNetYoyPct : periodNetYoyPct
+        let yoyPct: Double? = (hasPrev && !isFutureScrub) ? rawYoy : nil
         return HStack(alignment: .center, spacing: 8) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Total net profit")
@@ -616,7 +814,7 @@ struct ProfitLossDetailView: View {
             // scrubbing begins; dot sits at top + 2pt to align with the title label.
             ZStack(alignment: .topLeading) {
                 Circle()
-                    .fill(isRevenue ? Color.barRevPrimary : Color.barExpPrimary)
+                    .fill(isRevenue ? Color.dotRevLight : Color.dotExpLight)
                     .frame(width: 12, height: 12)
                     .padding(.top, 2)
             }
@@ -676,7 +874,7 @@ struct ProfitLossDetailView: View {
         let yoyPct: Double? = (hasPrev && !isFutureScrub) ? (isRevenue ? rawYoy : -rawYoy) : nil
 
         return metricRow(
-            indicator:      isRevenue ? .revenue : .expenses,
+            indicator:      isRevenue ? .revenueCategory : .expensesCategory,
             title:          selectedCategoryName,
             yoyPct:         yoyPct,
             value:          fmt(catValue),
@@ -782,30 +980,50 @@ struct ProfitLossDetailView: View {
             ProfitLossDetailView(
                 pageTitle: "Revenue",
                 showRevenueExpensesCard: false,
-                initialPeriod:  selectedPeriod,
-                initialYear:    selectedYear,
-                initialQuarter: selectedQuarter,
-                initialMonth:   selectedMonth
+                initialPeriod:    selectedPeriod,
+                initialYear:      selectedYear,
+                initialQuarter:   selectedQuarter,
+                initialMonth:     selectedMonth,
+                initialDay:       selectedDay,
+                initialWeekStart: selectedWeekStart
             )
         }
         .navigationDestination(isPresented: $showExpensesDetail) {
             ProfitLossDetailView(
                 pageTitle: "Expenses",
                 showRevenueExpensesCard: false,
-                initialPeriod:  selectedPeriod,
-                initialYear:    selectedYear,
-                initialQuarter: selectedQuarter,
-                initialMonth:   selectedMonth
+                initialPeriod:    selectedPeriod,
+                initialYear:      selectedYear,
+                initialQuarter:   selectedQuarter,
+                initialMonth:     selectedMonth,
+                initialDay:       selectedDay,
+                initialWeekStart: selectedWeekStart
             )
         }
         .background(Color.white)
         .background(NavigationBackGestureEnabler())
         // Keep global date + location in sync with this page's current period/location.
-        .onAppear { updateGlobalFilters() }
-        .onChange(of: selectedYear)      { updateGlobalFilters() }
-        .onChange(of: selectedPeriod)    { updateGlobalFilters() }
-        .onChange(of: selectedQuarter)   { updateGlobalFilters() }
-        .onChange(of: selectedMonth)     { updateGlobalFilters() }
+        // On re-appear (popping back from Revenue / Expenses), restore the period
+        // state that the child page last wrote to navState.
+        .onAppear {
+            if hasAppeared, pageTitle == "Profit & Loss", let navState {
+                selectedPeriod      = navState.plPeriod
+                selectedYear        = navState.plYear
+                selectedQuarter     = navState.plQuarter
+                selectedMonth       = navState.plMonth
+                selectedDay         = navState.plDay
+                selectedWeekStart   = navState.plWeekStart
+                plSelectedLocations = navState.globalLocations
+            }
+            hasAppeared = true
+            updateGlobalFilters()
+        }
+        .onChange(of: selectedYear)        { updateGlobalFilters() }
+        .onChange(of: selectedPeriod)      { updateGlobalFilters() }
+        .onChange(of: selectedQuarter)     { updateGlobalFilters() }
+        .onChange(of: selectedMonth)       { updateGlobalFilters() }
+        .onChange(of: selectedDay)         { updateGlobalFilters() }
+        .onChange(of: selectedWeekStart)   { updateGlobalFilters() }
         .onChange(of: plSelectedStartDate) { updateGlobalFilters() }
         .onChange(of: plSelectedEndDate)   { updateGlobalFilters() }
         .onChange(of: plSelectedLocations) { updateGlobalFilters() }
@@ -840,49 +1058,179 @@ struct ProfitLossDetailView: View {
         )
     }
 
-    /// Opens the TxDateSheet via navState — same sheet as the transactions page date chip.
-    /// Pre-selects the preset matching the current period granularity. When Done is tapped,
-    /// translates the chosen preset back into selectedPeriod / Year / Quarter / Month so
-    /// the chip label and all data below update immediately.
+    /// Opens the TxDateSheet in P&L mode via navState — shows all presets with short labels,
+    /// auto-dismisses on selection (changes granularity within current period), and offers
+    /// a calendar-today icon button to jump to the actual current period.
     private func presentDatePicker() {
         guard let navState else { return }
-        let preset: DatePreset? = {
+        let initialPreset: DatePreset? = {
             switch selectedPeriod {
+            case "Day":     return .today
+            case "Week":    return .thisWeek
             case "Month":   return .thisMonth
             case "Quarter": return .thisQuarter
             default:        return .thisYear
             }
         }()
-        navState.txDatePickerInitialStart  = plSelectedStartDate
-        navState.txDatePickerInitialEnd    = plSelectedEndDate
-        navState.txDatePickerInitialPreset = preset
+        navState.txDatePickerInitialStart        = plSelectedStartDate
+        navState.txDatePickerInitialEnd          = plSelectedEndDate
+        navState.txDatePickerInitialPreset       = initialPreset
+        navState.txDatePickerPLMode              = true
+        navState.txDatePickerCurrentPeriodPreset = initialPreset
         navState.txDatePickerOnCommit = { [self] start, end in
             plSelectedStartDate = start
             plSelectedEndDate   = end
         }
+        // Preset row tapped: change granularity.
+        // • Viewing the CURRENT period → jump to today's actual equivalent
+        //   (today, this week, this month, this quarter).
+        // • Viewing a PAST period → stay anchored within that period (first day,
+        //   first week, first month, etc.) — preserving the previous behaviour.
+        // No animation in either case; sliding is reserved for chevron/swipe/icon.
         navState.txDatePickerOnCommitPreset = { [self] chosen in
             guard let chosen else { return }
-            let cal   = Calendar.current
-            let start = chosen.dateRange.start
-            let year  = cal.component(.year,  from: start)
-            let month = cal.component(.month, from: start)
+            let cal       = Calendar.current
+            let appToday  = cal.date(from: DateComponents(year: 2024, month: 12, day: 15))!
+            let oldPeriod = selectedPeriod
+
+            // Is the user currently looking at the live/current period?
+            let onCurrent: Bool = {
+                switch oldPeriod {
+                case "Year":
+                    return selectedYear == AppFinancials.currentYear
+                case "Quarter":
+                    return selectedYear == AppFinancials.currentYear
+                        && selectedQuarter == AppFinancials.currentQuarter
+                case "Month":
+                    return selectedYear == AppFinancials.currentYear
+                        && selectedMonth == AppFinancials.currentMonth
+                case "Week":
+                    let weekEnd = cal.date(byAdding: .day, value: 6, to: selectedWeekStart)!
+                    return selectedWeekStart <= appToday && weekEnd >= appToday
+                case "Day":
+                    return selectedYear  == AppFinancials.currentYear
+                        && selectedMonth == AppFinancials.currentMonth
+                        && selectedDay   == AppFinancials.currentDay
+                default: return false
+                }
+            }()
+
+            switch chosen {
+            case .today:   // ── "Day" ────────────────────────────────────────────────
+                // DOWN from coarser period: first day of the period being viewed.
+                // Special case: if the viewed period is the current one, land on today
+                // (not Jan 1 of the current year, not the 1st of the current month).
+                // Exception: Week→Day always goes to Monday of that week — going down
+                // one step means drill into the start of the week, not today.
+                selectedPeriod = "Day"
+                switch oldPeriod {
+                case "Week":
+                    // DOWN one step — first day of the week (Monday), current or not.
+                    selectedYear  = cal.component(.year,  from: selectedWeekStart)
+                    selectedMonth = cal.component(.month, from: selectedWeekStart)
+                    selectedDay   = cal.component(.day,   from: selectedWeekStart)
+                case "Year":
+                    if onCurrent { selectedMonth = AppFinancials.currentMonth
+                                   selectedDay   = AppFinancials.currentDay }
+                    else         { selectedMonth = 1; selectedDay = 1 }
+                case "Quarter":
+                    if onCurrent { selectedMonth = AppFinancials.currentMonth
+                                   selectedDay   = AppFinancials.currentDay }
+                    else         { selectedMonth = (selectedQuarter - 1) * 3 + 1; selectedDay = 1 }
+                default: // Month or already Day
+                    if onCurrent { selectedDay = AppFinancials.currentDay }
+                    else         { selectedDay = 1 }
+                }
+
+            case .thisWeek:   // ── "Week" ───────────────────────────────────────────
+                // UP from Day: week containing that day.
+                // DOWN from coarser: first week of the period (or current week if current).
+                selectedPeriod = "Week"
+                let anchor: Date
+                switch oldPeriod {
+                case "Day":
+                    // UP — week that contains this day.
+                    anchor = cal.date(from: DateComponents(year: selectedYear, month: selectedMonth, day: selectedDay)) ?? selectedWeekStart
+                case "Year":
+                    anchor = onCurrent ? appToday : cal.date(from: DateComponents(year: selectedYear, month: 1, day: 1))!
+                case "Quarter":
+                    anchor = onCurrent ? appToday : cal.date(from: DateComponents(year: selectedYear, month: (selectedQuarter - 1) * 3 + 1, day: 1))!
+                case "Month":
+                    anchor = onCurrent ? appToday : cal.date(from: DateComponents(year: selectedYear, month: selectedMonth, day: 1))!
+                default: return  // already Week
+                }
+                selectedWeekStart = Self.mondayOf(date: anchor)
+                selectedYear  = cal.component(.year,  from: selectedWeekStart)
+                selectedMonth = cal.component(.month, from: selectedWeekStart)
+
+            case .thisMonth:   // ── "Month" ──────────────────────────────────────────
+                // UP from Day/Week: month containing that day/week-start.
+                // DOWN from Year/Quarter: first month of period (or current if current).
+                selectedPeriod = "Month"
+                switch oldPeriod {
+                case "Week":
+                    // UP — month the week started in.
+                    selectedYear  = cal.component(.year,  from: selectedWeekStart)
+                    selectedMonth = cal.component(.month, from: selectedWeekStart)
+                case "Year":
+                    if onCurrent { selectedMonth = AppFinancials.currentMonth }
+                    else         { selectedMonth = 1 }
+                case "Quarter":
+                    if onCurrent { selectedMonth = AppFinancials.currentMonth }
+                    else         { selectedMonth = (selectedQuarter - 1) * 3 + 1 }
+                default: break  // Month or Day — keep selectedYear/selectedMonth
+                }
+
+            case .thisQuarter:   // ── "Quarter" ────────────────────────────────────
+                // UP from Month/Day/Week: quarter containing current position.
+                // DOWN from Year: first quarter (or current if current).
+                selectedPeriod = "Quarter"
+                switch oldPeriod {
+                case "Year":
+                    if onCurrent { selectedQuarter = AppFinancials.currentQuarter }
+                    else         { selectedQuarter = 1 }
+                case "Week":
+                    let m = cal.component(.month, from: selectedWeekStart)
+                    selectedYear    = cal.component(.year, from: selectedWeekStart)
+                    selectedQuarter = ((m - 1) / 3) + 1
+                case "Month", "Day":
+                    selectedQuarter = ((selectedMonth - 1) / 3) + 1
+                default: break  // already Quarter
+                }
+
+            case .thisYear:   // ── "Year" ───────────────────────────────────────────
+                // Always UP — year containing current position.
+                selectedPeriod = "Year"
+                if oldPeriod == "Week" {
+                    selectedYear = cal.component(.year, from: selectedWeekStart)
+                }
+            }
+        }
+        // Calendar icon: navigate to the actual current period (today/this week/etc.)
+        navState.txDatePickerOnGoToCurrent = { [self] in
+            let cal      = Calendar.current
+            let appToday = cal.date(from: DateComponents(year: 2024, month: 12, day: 15))!
+            slideLeft = true  // going to current period = forward in time → content enters from right
             withAnimation(.easeOut(duration: 0.18)) {
                 metricsNavCounter += 1
-                selectedYear = year
-                switch chosen {
-                case .today, .thisWeek, .thisMonth:
-                    selectedPeriod = "Month"
-                    selectedMonth  = month
-                case .thisQuarter:
-                    selectedPeriod   = "Quarter"
-                    selectedQuarter  = ((month - 1) / 3) + 1
-                case .thisYear:
-                    selectedPeriod = "Year"
+                selectedYear = AppFinancials.currentYear
+                switch selectedPeriod {
+                case "Day":
+                    selectedMonth = AppFinancials.currentMonth
+                    selectedDay   = AppFinancials.currentDay
+                case "Week":
+                    selectedWeekStart = Self.mondayOf(date: appToday)
+                    selectedMonth     = cal.component(.month, from: selectedWeekStart)
+                case "Month":
+                    selectedMonth = AppFinancials.currentMonth
+                case "Quarter":
+                    selectedQuarter = AppFinancials.currentQuarter
+                default: break  // Year — selectedYear already set
                 }
             }
         }
         navState.txDatePickerOnDone    = { navState.txDatePickerPresented = false }
-        navState.txDatePickerHeight    = TxDateSheet.compactHeight
+        navState.txDatePickerHeight    = TxDateSheet.plCompactHeight
         navState.txDatePickerPresented = true
     }
 
@@ -938,6 +1286,16 @@ struct ProfitLossDetailView: View {
                 let end        = cal.date(from: DateComponents(year: selectedYear, month: endMonth, day: daysInEnd))!
                 navState.globalStartDate = start
                 navState.globalEndDate   = min(end, appToday)
+            case "Week":
+                let weekEnd = cal.date(byAdding: .day, value: 6, to: selectedWeekStart)!
+                navState.globalStartDate = selectedWeekStart
+                navState.globalEndDate   = min(weekEnd, appToday)
+            case "Day":
+                let dc = DateComponents(year: selectedYear, month: selectedMonth, day: selectedDay)
+                if let dayDate = cal.date(from: dc) {
+                    navState.globalStartDate = dayDate
+                    navState.globalEndDate   = min(dayDate, appToday)
+                }
             default: // Year
                 let start = cal.date(from: DateComponents(year: selectedYear, month: 1,  day: 1))!
                 let end   = cal.date(from: DateComponents(year: selectedYear, month: 12, day: 31))!
@@ -946,6 +1304,15 @@ struct ProfitLossDetailView: View {
             }
         }
         navState.globalLocations = plSelectedLocations
+
+        // Mirror the current period state so the P&L parent can restore it when
+        // the user pops back from a Revenue or Expenses detail page.
+        navState.plPeriod    = selectedPeriod
+        navState.plYear      = selectedYear
+        navState.plQuarter   = selectedQuarter
+        navState.plMonth     = selectedMonth
+        navState.plDay       = selectedDay
+        navState.plWeekStart = selectedWeekStart
     }
 
     /// Opens a location filter sheet directly, relayed via navState so ContentView
@@ -969,9 +1336,23 @@ struct ProfitLossDetailView: View {
     /// Format mirrors the bar chart scrub/tooltip pattern: "{type} • {value}".
     /// Year: "Year • 2024" | Quarter: "Quarter • Q1" | Month: "Month • December"
     private var periodChipLabel: String {
+        let cal = Calendar.current
         switch selectedPeriod {
         case "Quarter": return "Quarter • Q\(selectedQuarter)"
         case "Month":   return "Month • \(Self.monthNames[selectedMonth - 1])"
+        case "Week":
+            let endDate = cal.date(byAdding: .day, value: 6, to: selectedWeekStart)!
+            let fmt = DateFormatter(); fmt.locale = Locale(identifier: "en_US"); fmt.dateFormat = "MMM d"
+            return "Week • \(fmt.string(from: selectedWeekStart)) – \(fmt.string(from: endDate))"
+        case "Day":
+            let dc = DateComponents(year: selectedYear, month: selectedMonth, day: selectedDay)
+            if let date = cal.date(from: dc) {
+                let wdIdx = cal.component(.weekday, from: date) - 1
+                let wd = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][wdIdx]
+                let fmt = DateFormatter(); fmt.locale = Locale(identifier: "en_US"); fmt.dateFormat = "MMM d"
+                return "Day • \(wd), \(fmt.string(from: date))"
+            }
+            return "Day"
         default:        return "Year • \(selectedYear)"
         }
     }
@@ -1083,8 +1464,10 @@ struct ProfitLossDetailView: View {
     }
 
     private enum IndicatorKind {
-        case revenue
-        case expenses
+        case revenue          // total revenue  → lighter secondary color
+        case expenses         // total expenses → lighter secondary color
+        case revenueCategory  // selected category on Revenue page → darker primary color
+        case expensesCategory // selected category on Expenses page → darker primary color
     }
 
     private func metricRow(indicator: IndicatorKind,
@@ -1106,10 +1489,20 @@ struct ProfitLossDetailView: View {
                 switch indicator {
                 case .revenue:
                     Circle()
-                        .fill(Color.barRevPrimary)
+                        .fill(Color.dotRevLight)
                         .frame(width: 12, height: 12)
                         .padding(.top, 2)
                 case .expenses:
+                    Circle()
+                        .fill(Color.dotExpLight)
+                        .frame(width: 12, height: 12)
+                        .padding(.top, 2)
+                case .revenueCategory:
+                    Circle()
+                        .fill(Color.barRevPrimary)
+                        .frame(width: 12, height: 12)
+                        .padding(.top, 2)
+                case .expensesCategory:
                     Circle()
                         .fill(Color.barExpPrimary)
                         .frame(width: 12, height: 12)
@@ -1308,7 +1701,7 @@ private struct ViewAllButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .background(
-                configuration.isPressed ? Color.gray6 : Color.gray7,
+                configuration.isPressed ? Color.gray7 : Color.clear,
                 in: Capsule()
             )
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)

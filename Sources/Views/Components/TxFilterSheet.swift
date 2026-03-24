@@ -276,9 +276,10 @@ struct PLCategoryPickerSheet: View {
     }
 
     /// Compact sheet height for a given row count.
-    /// CustomBottomSheet top-padding 24pt + header 64pt + rows 56pt each + bottom inset 32pt.
+    /// CustomBottomSheet top-padding 24pt + header 64pt + rows 56pt each +
+    /// safeAreaInset 32pt + home-indicator clearance 34pt.
     static func height(rowCount: Int) -> CGFloat {
-        CGFloat(24 + 64 + rowCount * 56 + 32)
+        CGFloat(24 + 64 + rowCount * 56 + 32 + 34)
     }
 
     @State private var isScrolled = false
@@ -286,45 +287,30 @@ struct PLCategoryPickerSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             // ── Header ──────────────────────────────────────────────────────
-            HStack(spacing: 10) {
-                Text(title)
-                    .font(.heading30)
-                    .foregroundStyle(Color.gray1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                Button {
-                    onSelect(pendingIndex)
-                    onDone()
-                } label: {
-                    Text("Done")
-                        .font(.paragraphSemibold30)
-                        .foregroundStyle(Color.white)
-                        .frame(height: 48)
-                        .padding(.horizontal, 22)
-                        .background(Color.gray1)
-                        .clipShape(Capsule())
+            Text(title)
+                .font(.heading30)
+                .foregroundStyle(Color.gray1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(height: 48)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 16)
+                .overlay(alignment: .bottom) {
+                    if isScrolled {
+                        Rectangle()
+                            .fill(Color.gray5)
+                            .frame(height: 1)
+                            .transition(.opacity)
+                    }
                 }
-                .buttonStyle(.plain)
-            }
-            .frame(height: 48)
-            .padding(.horizontal, 24)
-            .padding(.bottom, 16)
-            .overlay(alignment: .bottom) {
-                if isScrolled {
-                    Rectangle()
-                        .fill(Color.gray5)
-                        .frame(height: 1)
-                        .transition(.opacity)
-                }
-            }
-            .animation(.easeInOut(duration: 0.2), value: isScrolled)
+                .animation(.easeInOut(duration: 0.2), value: isScrolled)
 
             // ── Radio rows ───────────────────────────────────────────────────
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 0) {
                     ForEach(options, id: \.id) { option in
                         Button {
-                            pendingIndex = option.id
+                            onSelect(option.id)
+                            onDone()
                         } label: {
                             HStack(spacing: 16) {
                                 Text(option.label)
